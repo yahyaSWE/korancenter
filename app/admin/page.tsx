@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Profile, Course, Enrollment, Message } from "@/lib/supabase/types";
 
-type Tab = "overview" | "students" | "courses" | "lessons" | "messages";
+type Tab = "overview" | "students" | "courses" | "lessons" | "messages" | "material";
 
 type EnrollmentRow = Enrollment & {
   student: Pick<Profile, "id" | "full_name" | "email"> | null;
@@ -13,6 +13,19 @@ type EnrollmentRow = Enrollment & {
 type MessageRow = Message & {
   sender: Pick<Profile, "full_name" | "email"> | null;
   recipient: Pick<Profile, "full_name" | "email"> | null;
+};
+
+type MaterialRow = {
+  id: string;
+  title: string;
+  type: string | null;
+  url: string | null;
+  file_size_bytes: number | null;
+  created_at: string;
+  course_id: string;
+  lesson_id: string | null;
+  course: { id: string; title: string } | null;
+  lesson: { id: string; title: string } | null;
 };
 
 type DaySchedule = { enabled: boolean; time: string };
@@ -89,8 +102,10 @@ export default function AdminPanel() {
   const [enrollments, setEnrollments] = useState<EnrollmentRow[]>([]);
   const [lessons, setLessons] = useState<{ id: string; title: string; scheduled_at: string | null; meeting_link: string | null; course_id?: string; course: { title: string } | null }[]>([]);
   const [messages, setMessages] = useState<MessageRow[]>([]);
+  const [materials, setMaterials] = useState<MaterialRow[]>([]);
 
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [showMaterialModal, setShowMaterialModal] = useState(false);
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [showStudentModal, setShowStudentModal] = useState(false);
   const [showEnrollModal, setShowEnrollModal] = useState(false);
@@ -104,22 +119,26 @@ export default function AdminPanel() {
   const [studentForm, setStudentForm] = useState({ email: "", full_name: "", password: "" });
   const [enrollForm, setEnrollForm] = useState({ student_id: "", course_id: "" });
   const [msgForm, setMsgForm] = useState({ subject: "", content: "" });
+  const [materialForm, setMaterialForm] = useState({ title: "", course_id: "", lesson_id: "", type: "pdf", file: null as File | null });
+  const [uploadProgress, setUploadProgress] = useState(false);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState("");
 
   const load = useCallback(async () => {
-    const [s, c, e, l, m] = await Promise.all([
+    const [s, c, e, l, m, mat] = await Promise.all([
       fetch("/api/admin/students").then((r) => r.json()),
       fetch("/api/admin/courses").then((r) => r.json()),
       fetch("/api/admin/enrollments").then((r) => r.json()),
       fetch("/api/admin/lessons").then((r) => r.json()),
       fetch("/api/admin/messages").then((r) => r.json()),
+      fetch("/api/admin/materials").then((r) => r.json()),
     ]);
     if (!s.error) setStudents(s);
     if (!c.error) setCourses(c);
     if (!e.error) setEnrollments(e);
     if (!l.error) setLessons(l);
     if (!m.error) setMessages(m);
+    if (!mat.error) setMaterials(mat);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -229,6 +248,29 @@ export default function AdminPanel() {
     else toast("Något gick fel.");
   };
 
+  // --- Materials ---
+  const saveMaterial = async () => {
+    if (!materialForm.file || !materialForm.title || !materialForm.course_id) {
+      toast("Välj fil, titel och kurs."); return;
+    }
+    setUploadProgress(true);
+    const fd = new FormData();
+    fd.append("file", materialForm.file);
+    fd.append("title", materialForm.title);
+    fd.append("course_id", materialForm.course_id);
+    fd.append("type", materialForm.type);
+    if (materialForm.lesson_id) fd.append("lesson_id", materialForm.lesson_id);
+    const res = await fetch("/api/admin/materials", { method: "POST", body: fd });
+    setUploadProgress(false);
+    if (res.ok) { setShowMaterialModal(false); load(); toast("Fil uppladdad!"); }
+    else { const d = await res.json(); toast(d.error ?? "Uppladdning misslyckades."); }
+  };
+  const deleteMaterial = async (id: string, url: string | null) => {
+    if (!confirm("Ta bort filen permanent?")) return;
+    await fetch("/api/admin/materials", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, url }) });
+    load(); toast("Fil borttagen.");
+  };
+
   const totalRevenue = enrollments.filter((e) => e.payment_status === "paid")
     .reduce((sum, e) => sum + ((e.course as { price_sek?: number } | null)?.price_sek ?? 0), 0);
 
@@ -254,7 +296,7 @@ export default function AdminPanel() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-8 flex-wrap">
-          {([["overview", "Översikt"], ["students", "Elever"], ["courses", "Kurser"], ["lessons", "Lektioner"], ["messages", "Meddelanden"]] as [Tab, string][]).map(([key, label]) => (
+          {([["overview", "Översikt"], ["students", "Elever"], ["courses", "Kurser"], ["lessons", "Lektioner"], ["messages", "Meddelanden"], ["material", "Material"]] as [Tab, string][]).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === key ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>
               {label}
@@ -553,6 +595,75 @@ export default function AdminPanel() {
             </div>
           </div>
         )}
+        {/* MATERIAL */}
+        {tab === "material" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Material ({materials.length} filer)</h2>
+              <button onClick={() => { setMaterialForm({ title: "", course_id: courses[0]?.id ?? "", lesson_id: "", type: "pdf", file: null }); setShowMaterialModal(true); }}
+                className={btnPrimary} style={{ backgroundColor: "#7B3FB0" }}>
+                + Ladda upp fil
+              </button>
+            </div>
+
+            {materials.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center text-gray-400 text-sm">
+                Inga filer ännu. Ladda upp material som eleverna kan ladda ner.
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Fil</th>
+                        <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Kurs</th>
+                        <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Typ</th>
+                        <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Storlek</th>
+                        <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Uppladdad</th>
+                        <th className="px-6 py-3" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {materials.map((mat) => {
+                        const typeIcons: Record<string, string> = { pdf: "📄", video: "🎥", note: "📝", audio: "🎵" };
+                        const icon = mat.type ? typeIcons[mat.type] ?? "📎" : "📎";
+                        const size = mat.file_size_bytes ? `${(mat.file_size_bytes / (1024 * 1024)).toFixed(1)} MB` : "–";
+                        return (
+                          <tr key={mat.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg">{icon}</span>
+                                <span className="font-medium text-gray-900 truncate max-w-48">{mat.title}</span>
+                              </div>
+                              {mat.lesson && <p className="text-xs text-gray-400 mt-0.5 pl-7">{mat.lesson.title}</p>}
+                            </td>
+                            <td className="px-6 py-4 text-gray-500 text-xs">{mat.course?.title ?? "–"}</td>
+                            <td className="px-6 py-4">
+                              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: "#F5EEFF", color: "#7B3FB0" }}>
+                                {mat.type?.toUpperCase() ?? "–"}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-gray-400 text-xs">{size}</td>
+                            <td className="px-6 py-4 text-gray-400 text-xs">{new Date(mat.created_at).toLocaleDateString("sv-SE")}</td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3 justify-end">
+                                {mat.url && (
+                                  <a href={mat.url} target="_blank" rel="noopener noreferrer" className="text-xs text-[#7B3FB0] hover:underline">Öppna</a>
+                                )}
+                                <button onClick={() => deleteMaterial(mat.id, mat.url)} className="text-xs text-gray-400 hover:text-red-500">Ta bort</button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* --- MODALS --- */}
@@ -705,6 +816,67 @@ export default function AdminPanel() {
             <div className="flex gap-2 pt-2">
               <button onClick={saveEnroll} disabled={saving} className={`flex-1 ${btnPrimary}`} style={{ backgroundColor: "#7B3FB0" }}>{saving ? "Lägger till..." : "Lägg till"}</button>
               <button onClick={() => setShowEnrollModal(false)} className={btnSecondary}>Avbryt</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Material Upload Modal */}
+      {showMaterialModal && (
+        <Modal title="Ladda upp fil" onClose={() => setShowMaterialModal(false)}>
+          <div className="space-y-4">
+            <Field label="Fil *">
+              <input
+                type="file"
+                accept=".pdf,.mp4,.mov,.mp3,.m4a,.txt,.docx"
+                className={inputCls}
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  if (file) {
+                    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+                    const autoType = ext === "pdf" ? "pdf"
+                      : ["mp4", "mov", "webm"].includes(ext) ? "video"
+                      : ["mp3", "m4a", "wav"].includes(ext) ? "audio"
+                      : "note";
+                    setMaterialForm({ ...materialForm, file, type: autoType });
+                  }
+                }}
+              />
+              {materialForm.file && (
+                <p className="text-xs text-gray-400 mt-1">
+                  {materialForm.file.name} ({(materialForm.file.size / (1024 * 1024)).toFixed(1)} MB)
+                </p>
+              )}
+            </Field>
+            <Field label="Titel *">
+              <input className={inputCls} value={materialForm.title} onChange={(e) => setMaterialForm({ ...materialForm, title: e.target.value })} placeholder="T.ex. Tajwid-regler – Lektion 3" />
+            </Field>
+            <Field label="Kurs *">
+              <select className={inputCls} value={materialForm.course_id} onChange={(e) => setMaterialForm({ ...materialForm, course_id: e.target.value, lesson_id: "" })}>
+                <option value="">Välj kurs...</option>
+                {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+              </select>
+            </Field>
+            <Field label="Lektion (valfritt)">
+              <select className={inputCls} value={materialForm.lesson_id} onChange={(e) => setMaterialForm({ ...materialForm, lesson_id: e.target.value })}>
+                <option value="">Inte kopplad till lektion</option>
+                {lessons.filter((l) => !materialForm.course_id || l.course_id === materialForm.course_id)
+                  .map((l) => <option key={l.id} value={l.id}>{l.title}</option>)}
+              </select>
+            </Field>
+            <Field label="Typ">
+              <select className={inputCls} value={materialForm.type} onChange={(e) => setMaterialForm({ ...materialForm, type: e.target.value })}>
+                <option value="pdf">PDF</option>
+                <option value="video">Video</option>
+                <option value="audio">Ljud</option>
+                <option value="note">Anteckning</option>
+              </select>
+            </Field>
+            <div className="flex gap-2 pt-2">
+              <button onClick={saveMaterial} disabled={uploadProgress || !materialForm.file} className={`flex-1 ${btnPrimary}`} style={{ backgroundColor: "#7B3FB0" }}>
+                {uploadProgress ? "Laddar upp..." : "Ladda upp"}
+              </button>
+              <button onClick={() => setShowMaterialModal(false)} className={btnSecondary}>Avbryt</button>
             </div>
           </div>
         </Modal>
