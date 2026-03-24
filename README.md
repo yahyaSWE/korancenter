@@ -1,36 +1,102 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Korancenter – Hemsida
 
-## Getting Started
+Online-institut för koranundervisning för kvinnor.
 
-First, run the development server:
+## Tech Stack
 
+- **Next.js 15** (App Router, TypeScript)
+- **Tailwind CSS** – styling
+- **Supabase** – databas, autentisering, RLS
+- **Klarna** – betalning (kort + Swish)
+- **Resend** – transaktionella e-post
+- **Vercel** – deployment
+
+---
+
+## Kom igång
+
+### 1. Installera beroenden
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Konfigurera miljövariabler
+```bash
+cp .env.local.example .env.local
+```
+Fyll i dina nycklar för Supabase, Klarna och Resend i `.env.local`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Sätt upp Supabase-databasen
+1. Skapa ett projekt på [supabase.com](https://supabase.com)
+2. Gå till **SQL Editor**
+3. Kör hela innehållet i `supabase/schema.sql`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 4. Starta lokalt
+```bash
+npm run dev
+```
+Öppna [http://localhost:3000](http://localhost:3000)
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Projektstruktur
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+korancenter/
+├── app/
+│   ├── page.tsx                  # Startsida
+│   ├── om-oss/page.tsx           # Om oss
+│   ├── kurser/page.tsx           # Kurser & Priser
+│   ├── kontakt/page.tsx          # Kontakt
+│   ├── logga-in/page.tsx         # Inloggning
+│   ├── aterstall-losenord/       # Återställ lösenord
+│   ├── portal/                   # Elevportal (skyddad)
+│   │   ├── layout.tsx            # Sidebar-layout
+│   │   ├── page.tsx              # Dashboard
+│   │   ├── kurser/               # Mina kurser
+│   │   ├── schema/               # Lektionsschema
+│   │   ├── material/             # Lektionsmaterial
+│   │   └── meddelanden/          # Meddelanden
+│   ├── admin/page.tsx            # Adminpanel
+│   └── api/
+│       ├── auth/callback/        # Supabase auth callback
+│       ├── klarna/               # Klarna-integration
+│       └── resend/               # E-post (kontakt + bekräftelse)
+├── components/
+│   ├── Navbar.tsx
+│   └── Footer.tsx
+├── lib/supabase/
+│   ├── client.ts                 # Client-side Supabase
+│   └── server.ts                 # Server-side Supabase
+├── middleware.ts                  # Auth-skydd för /portal och /admin
+└── supabase/schema.sql           # Databasschema + RLS
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Driftsättning på Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Pusha koden till GitHub
+2. Importera repot på [vercel.com](https://vercel.com)
+3. Lägg till miljövariabler under Settings i Vercel-projektet
+4. Deployera – Vercel hanterar SSL automatiskt
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Klarna-integration
+
+Klarna Payments används för betalning vid kursanmälan.
+
+- **Testmiljö:** `https://api.playground.klarna.com`
+- **Produktion:** `https://api.klarna.com`
+- Sätt `KLARNA_ENV=sandbox` för test, `KLARNA_ENV=production` för live
+
+---
+
+## Resend – E-post
+
+Två e-postflöden:
+1. **Kontaktformulär** – `/api/resend/contact`
+2. **Betalningsbekräftelse** – `/api/resend/confirmation`
+
+Konfigurera din domän på [resend.com](https://resend.com) och lägg till DNS-poster.
