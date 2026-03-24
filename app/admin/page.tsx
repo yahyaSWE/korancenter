@@ -250,8 +250,8 @@ export default function AdminPanel() {
 
   // --- Materials ---
   const saveMaterial = async () => {
-    if (!materialForm.file || !materialForm.title || !materialForm.course_id) {
-      toast("Välj fil, titel och kurs."); return;
+    if (!materialForm.file || !materialForm.title) {
+      toast("Välj fil och titel."); return;
     }
     setUploadProgress(true);
     const fd = new FormData();
@@ -851,10 +851,10 @@ export default function AdminPanel() {
             <Field label="Titel *">
               <input className={inputCls} value={materialForm.title} onChange={(e) => setMaterialForm({ ...materialForm, title: e.target.value })} placeholder="T.ex. Tajwid-regler – Lektion 3" />
             </Field>
-            <Field label="Kurs *">
+            <Field label="Synligt för">
               <select className={inputCls} value={materialForm.course_id} onChange={(e) => setMaterialForm({ ...materialForm, course_id: e.target.value, lesson_id: "" })}>
-                <option value="">Välj kurs...</option>
-                {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                <option value="">🌐 Alla elever (generellt)</option>
+                {courses.map((c) => <option key={c.id} value={c.id}>📚 {c.title}</option>)}
               </select>
             </Field>
             <Field label="Lektion (valfritt)">

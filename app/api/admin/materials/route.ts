@@ -22,17 +22,18 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
   const title = formData.get("title") as string;
-  const course_id = formData.get("course_id") as string;
+  const course_id = (formData.get("course_id") as string) || null;
   const lesson_id = formData.get("lesson_id") as string | null;
   const type = formData.get("type") as string | null;
 
-  if (!file || !title || !course_id) {
-    return NextResponse.json({ error: "fil, titel och kurs krävs" }, { status: 400 });
+  if (!file || !title) {
+    return NextResponse.json({ error: "fil och titel krävs" }, { status: 400 });
   }
 
   const adminClient = createAdminClient();
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const path = `${course_id}/${Date.now()}-${safeName}`;
+  const folder = course_id ?? "general";
+  const path = `${folder}/${Date.now()}-${safeName}`;
 
   const arrayBuffer = await file.arrayBuffer();
   const { error: uploadErr } = await adminClient.storage
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
     .from("materials")
     .insert({
       title,
-      course_id,
+      course_id: course_id || null,
       lesson_id: lesson_id || null,
       type: type || null,
       url: publicUrl,
