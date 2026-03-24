@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -58,6 +58,26 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userName, setUserName] = useState("Elev");
+  const [userInitial, setUserInitial] = useState("E");
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase
+          .from("profiles")
+          .select("full_name, email")
+          .eq("id", user.id)
+          .single()
+          .then(({ data }) => {
+            const name = data?.full_name ?? data?.email ?? "Elev";
+            setUserName(name);
+            setUserInitial(name.charAt(0).toUpperCase());
+          });
+      }
+    });
+  }, []);
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -67,13 +87,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-100 shadow-sm transform transition-transform duration-200 lg:relative lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Logga */}
         <div className="p-6 border-b border-gray-100">
           <Link href="/" className="flex items-center gap-3">
             <Image src="/images/logo.png" alt="Korancenter" width={36} height={36} className="object-contain" />
@@ -86,7 +104,6 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           </Link>
         </div>
 
-        {/* Nav */}
         <nav className="p-4 space-y-1">
           {navItems.map((item) => {
             const active = pathname === item.href;
@@ -96,9 +113,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  active
-                    ? "text-white shadow-sm"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  active ? "text-white shadow-sm" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
                 style={active ? { backgroundColor: "#7B3FB0" } : {}}
               >
@@ -109,11 +124,16 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           })}
         </nav>
 
-        {/* Logout */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100">
+          <div className="flex items-center gap-3 px-3 py-2 mb-2">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ backgroundColor: "#7B3FB0" }}>
+              {userInitial}
+            </div>
+            <p className="text-sm font-medium text-gray-700 truncate">{userName}</p>
+          </div>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all"
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -123,34 +143,25 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         </div>
       </aside>
 
-      {/* Overlay mobil */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Innehåll */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Topbar */}
         <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 sm:px-6 py-4 flex items-center justify-between">
-          <button
-            className="lg:hidden p-2 -ml-2 rounded-lg text-gray-600 hover:bg-gray-50"
-            onClick={() => setSidebarOpen(true)}
-          >
+          <button className="lg:hidden p-2 -ml-2 rounded-lg text-gray-600 hover:bg-gray-50" onClick={() => setSidebarOpen(true)}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
           <div className="lg:hidden" />
-
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold" style={{ backgroundColor: "#7B3FB0" }}>
-              E
+              {userInitial}
             </div>
-            <span className="text-sm font-medium text-gray-700 hidden sm:block">Min profil</span>
+            <span className="text-sm font-medium text-gray-700 hidden sm:block">{userName}</span>
           </div>
         </header>
-
-        {/* Sidans innehåll */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
     </div>

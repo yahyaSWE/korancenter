@@ -1,47 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import type { Message, Profile } from "@/lib/supabase/types";
 
-const messages = [
-  {
-    id: 1,
-    from: "Maryam Hassan",
-    initials: "MH",
-    subject: "Bra jobbat på senaste lektionen!",
-    preview: "Kom ihåg att öva på sura Al-Mulk till nästa gång.",
-    body: "Assalamu alaikum!\n\nDu gjorde ett riktigt bra jobb under gårdagens lektion – din läsning av Al-Baqara har verkligen förbättrats märkbart.\n\nKom ihåg att öva på sura Al-Mulk tills nästa gång. Fokusera på madd-reglerna i vers 3 och 4.\n\nBararakallahu feeki!",
-    date: "Igår, 20:14",
-    read: false,
-  },
-  {
-    id: 2,
-    from: "Maryam Hassan",
-    initials: "MH",
-    subject: "Kommande lektion – påminnelse",
-    preview: "Vår lektion är på måndag kl 18:00. Här är länken till mötet.",
-    body: "Assalamu alaikum!\n\nBara en påminnelse om att vår lektion är på måndag den 25 mars klockan 18:00.\n\nHär är länken till Google Meet: [länk]\n\nHoppas du haft en bra vecka. Vi ses på måndag insha'Allah!",
-    date: "22 mars",
-    read: false,
-  },
-  {
-    id: 3,
-    from: "Korancenter",
-    initials: "KC",
-    subject: "Välkommen till Korancenter!",
-    preview: "Vi är glada att ha dig som elev. Här hittar du all information du behöver.",
-    body: "Assalamu alaikum!\n\nVälkommen till Korancenter! Vi är mycket glada att ha dig som elev.\n\nI din elevportal kan du:\n• Se ditt schema och kommande lektioner\n• Ladda ner lektionsmaterial\n• Kommunicera med din lärare\n\nTveka inte att höra av dig om du har frågor.\n\nMed vänliga hälsningar,\nKorancenter",
-    date: "10 mars",
-    read: true,
-  },
-];
+type MessageWithSender = Message & { sender: Pick<Profile, "id" | "full_name" | "email"> | null };
 
 export default function Meddelanden() {
-  const [selected, setSelected] = useState<typeof messages[0] | null>(null);
-  const [messageList, setMessageList] = useState(messages);
+  const [messages, setMessages] = useState<MessageWithSender[]>([]);
+  const [selected, setSelected] = useState<MessageWithSender | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleSelect = (msg: typeof messages[0]) => {
+  useEffect(() => {
+    fetch("/api/portal/messages")
+      .then((r) => r.json())
+      .then((data) => { setMessages(data); setLoading(false); });
+  }, []);
+
+  const handleSelect = async (msg: MessageWithSender) => {
     setSelected(msg);
-    setMessageList((prev) => prev.map((m) => m.id === msg.id ? { ...m, read: true } : m));
+    if (!msg.is_read) {
+      await fetch("/api/portal/messages", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: msg.id }),
+      });
+      setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, is_read: true } : m));
+    }
+  };
+
+  const unread = messages.filter((m) => !m.is_read).length;
+
+  const senderName = (msg: MessageWithSender) =>
+    msg.sender?.full_name ?? msg.sender?.email ?? "Okänd";
+
+  const fmtDate = (iso: string) => {
+    const d = new Date(iso);
+    const today = new Date();
+    const diff = today.getDate() - d.getDate();
+    if (diff === 0 && today.getMonth() === d.getMonth()) return "Idag " + d.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+    if (diff === 1) return "Igår";
+    return d.toLocaleDateString("sv-SE");
   };
 
   return (
@@ -51,67 +49,76 @@ export default function Meddelanden() {
         <p className="text-gray-500 mt-1">Kommunikation med dina lärare och Korancenter.</p>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" style={{ minHeight: "500px" }}>
-        <div className="grid grid-cols-1 lg:grid-cols-5 h-full" style={{ minHeight: "500px" }}>
-          {/* Meddelandelista */}
-          <div className="lg:col-span-2 border-r border-gray-100">
-            <div className="px-4 py-3 border-b border-gray-100">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Inkorg ({messageList.filter(m => !m.read).length} olästa)</p>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" style={{ minHeight: 500 }}>
+        <div className="grid grid-cols-1 lg:grid-cols-5" style={{ minHeight: 500 }}>
+          {/* Lista */}
+          <div className="lg:col-span-2 border-r border-gray-100 flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Inkorg</p>
+              {unread > 0 && (
+                <span className="text-xs font-bold text-white px-2 py-0.5 rounded-full" style={{ backgroundColor: "#7B3FB0" }}>
+                  {unread} nya
+                </span>
+              )}
             </div>
-            <div className="divide-y divide-gray-50">
-              {messageList.map((msg) => (
-                <button
-                  key={msg.id}
-                  onClick={() => handleSelect(msg)}
-                  className={`w-full text-left px-4 py-4 hover:bg-gray-50 transition-colors ${
-                    selected?.id === msg.id ? "bg-[#F5EEFF]" : ""
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                      style={{ backgroundColor: "#7B3FB0" }}
-                    >
-                      {msg.initials}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className={`text-sm truncate ${!msg.read ? "font-semibold text-gray-900" : "text-gray-700"}`}>
-                          {msg.from}
-                        </p>
-                        <p className="text-xs text-gray-400 shrink-0">{msg.date}</p>
+
+            {loading ? (
+              <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Laddar...</div>
+            ) : messages.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Inga meddelanden ännu.</div>
+            ) : (
+              <div className="divide-y divide-gray-50 overflow-y-auto">
+                {messages.map((msg) => (
+                  <button
+                    key={msg.id}
+                    onClick={() => handleSelect(msg)}
+                    className={`w-full text-left px-4 py-4 hover:bg-gray-50 transition-colors ${selected?.id === msg.id ? "bg-[#F5EEFF]" : ""}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ backgroundColor: "#7B3FB0" }}>
+                        {senderName(msg).charAt(0).toUpperCase()}
                       </div>
-                      <p className={`text-xs truncate mt-0.5 ${!msg.read ? "font-medium text-gray-700" : "text-gray-400"}`}>
-                        {msg.subject}
-                      </p>
-                      <p className="text-xs text-gray-400 truncate mt-0.5">{msg.preview}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className={`text-sm truncate ${!msg.is_read ? "font-semibold text-gray-900" : "text-gray-700"}`}>
+                            {senderName(msg)}
+                          </p>
+                          <p className="text-xs text-gray-400 shrink-0">{fmtDate(msg.created_at)}</p>
+                        </div>
+                        {msg.subject && (
+                          <p className={`text-xs truncate mt-0.5 ${!msg.is_read ? "font-medium text-gray-700" : "text-gray-500"}`}>
+                            {msg.subject}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-400 truncate mt-0.5 line-clamp-1">{msg.content}</p>
+                      </div>
+                      {!msg.is_read && (
+                        <div className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ backgroundColor: "#7B3FB0" }} />
+                      )}
                     </div>
-                    {!msg.read && (
-                      <div className="w-2 h-2 rounded-full shrink-0 mt-1" style={{ backgroundColor: "#7B3FB0" }} />
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Meddelandeinnehåll */}
+          {/* Innehåll */}
           <div className="lg:col-span-3 flex flex-col">
             {selected ? (
               <>
                 <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="font-semibold text-gray-900">{selected.subject}</h2>
+                  <h2 className="font-semibold text-gray-900">{selected.subject ?? "(Inget ämne)"}</h2>
                   <div className="flex items-center gap-2 mt-1">
                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ backgroundColor: "#7B3FB0" }}>
-                      {selected.initials}
+                      {senderName(selected).charAt(0).toUpperCase()}
                     </div>
                     <p className="text-xs text-gray-500">
-                      <span className="font-medium">{selected.from}</span> · {selected.date}
+                      <span className="font-medium">{senderName(selected)}</span> · {fmtDate(selected.created_at)}
                     </p>
                   </div>
                 </div>
-                <div className="flex-1 px-6 py-5">
-                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{selected.body}</p>
+                <div className="flex-1 px-6 py-5 overflow-y-auto">
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{selected.content}</p>
                 </div>
               </>
             ) : (
