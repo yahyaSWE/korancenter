@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Profile, Course, Enrollment } from "@/lib/supabase/types";
+import type { Profile, Course, Enrollment, Message } from "@/lib/supabase/types";
 
 type Tab = "overview" | "students" | "courses" | "lessons" | "messages";
 
@@ -10,16 +10,25 @@ type EnrollmentRow = Enrollment & {
   course: Pick<Course, "id" | "title"> | null;
 };
 
+type MessageRow = Message & {
+  sender: Pick<Profile, "full_name" | "email"> | null;
+  recipient: Pick<Profile, "full_name" | "email"> | null;
+};
+
+type DaySchedule = { enabled: boolean; time: string };
+
 const LEVEL_LABELS: Record<string, string> = {
   beginner: "Nybörjare",
   intermediate: "Mellannivå",
   advanced: "Avancerad",
 };
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+const DAY_NAMES = ["Måndag", "Tisdag", "Onsdag", "Torsdag", "Fredag", "Lördag", "Söndag"];
+
+function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className={`bg-white rounded-2xl shadow-xl w-full ${wide ? "max-w-lg" : "max-w-md"} max-h-[90vh] overflow-y-auto`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900">{title}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
@@ -47,28 +56,51 @@ const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-sm foc
 const btnPrimary = "px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-all";
 const btnSecondary = "px-4 py-2 rounded-xl text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition-all";
 
+function generateLessonDates(startDateStr: string, weeksCount: number, daySchedules: DaySchedule[]): Date[] {
+  if (!startDateStr) return [];
+  const start = new Date(startDateStr + "T00:00:00");
+  const startDayOfWeek = start.getDay();
+  const daysFromMonday = (startDayOfWeek + 6) % 7;
+  const monday = new Date(start);
+  monday.setDate(start.getDate() - daysFromMonday);
+
+  const dates: Date[] = [];
+  for (let week = 0; week < weeksCount; week++) {
+    for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+      if (!daySchedules[dayIdx].enabled) continue;
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + week * 7 + dayIdx);
+      const [h, m] = daySchedules[dayIdx].time.split(":").map(Number);
+      d.setHours(h, m, 0, 0);
+      if (d >= start) dates.push(d);
+    }
+  }
+  return dates.sort((a, b) => a.getTime() - b.getTime());
+}
+
+const defaultDays = (): DaySchedule[] =>
+  Array.from({ length: 7 }, () => ({ enabled: false, time: "18:00" }));
+
 export default function AdminPanel() {
   const [tab, setTab] = useState<Tab>("overview");
 
-  // Data
   const [students, setStudents] = useState<Profile[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [enrollments, setEnrollments] = useState<EnrollmentRow[]>([]);
+  const [lessons, setLessons] = useState<{ id: string; title: string; scheduled_at: string | null; meeting_link: string | null; course_id?: string; course: { title: string } | null }[]>([]);
+  const [messages, setMessages] = useState<MessageRow[]>([]);
 
-  // Modals
+  const [showBulkModal, setShowBulkModal] = useState(false);
   const [showCourseModal, setShowCourseModal] = useState(false);
-  const [showLessonModal, setShowLessonModal] = useState(false);
   const [showStudentModal, setShowStudentModal] = useState(false);
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [showMsgModal, setShowMsgModal] = useState(false);
   const [editCourse, setEditCourse] = useState<Course | null>(null);
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [msgRecipient, setMsgRecipient] = useState<Profile | null>(null);
-  const [lessons, setLessons] = useState<{ id: string; title: string; scheduled_at: string | null; meeting_link: string | null; course: { title: string } | null }[]>([]);
 
-  // Forms
   const [courseForm, setCourseForm] = useState({ title: "", description: "", level: "beginner", price_sek: "", sessions_per_week: "2", duration_weeks: "" });
-  const [lessonForm, setLessonForm] = useState({ course_id: "", title: "", scheduled_at: "", duration_minutes: "60", meeting_link: "" });
+  const [bulkForm, setBulkForm] = useState({ course_id: "", title_prefix: "Lektion", start_date: "", weeks: "4", duration_minutes: "60", meeting_link: "", days: defaultDays() });
   const [studentForm, setStudentForm] = useState({ email: "", full_name: "", password: "" });
   const [enrollForm, setEnrollForm] = useState({ student_id: "", course_id: "" });
   const [msgForm, setMsgForm] = useState({ subject: "", content: "" });
@@ -76,21 +108,23 @@ export default function AdminPanel() {
   const [feedback, setFeedback] = useState("");
 
   const load = useCallback(async () => {
-    const [s, c, e, l] = await Promise.all([
+    const [s, c, e, l, m] = await Promise.all([
       fetch("/api/admin/students").then((r) => r.json()),
       fetch("/api/admin/courses").then((r) => r.json()),
       fetch("/api/admin/enrollments").then((r) => r.json()),
       fetch("/api/admin/lessons").then((r) => r.json()),
+      fetch("/api/admin/messages").then((r) => r.json()),
     ]);
     if (!s.error) setStudents(s);
     if (!c.error) setCourses(c);
     if (!e.error) setEnrollments(e);
     if (!l.error) setLessons(l);
+    if (!m.error) setMessages(m);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const toast = (msg: string) => { setFeedback(msg); setTimeout(() => setFeedback(""), 3000); };
+  const toast = (msg: string) => { setFeedback(msg); setTimeout(() => setFeedback(""), 3500); };
 
   // --- Courses ---
   const openCreateCourse = () => {
@@ -118,18 +152,38 @@ export default function AdminPanel() {
     load(); toast("Kurs borttagen.");
   };
 
-  // --- Lessons ---
-  const openLesson = (courseId?: string) => {
-    setLessonForm({ course_id: courseId ?? courses[0]?.id ?? "", title: "", scheduled_at: "", duration_minutes: "60", meeting_link: "" });
-    setShowLessonModal(true);
+  // --- Bulk Lessons ---
+  const openBulkModal = (courseId?: string) => {
+    setBulkForm({ course_id: courseId ?? courses[0]?.id ?? "", title_prefix: "Lektion", start_date: "", weeks: "4", duration_minutes: "60", meeting_link: "", days: defaultDays() });
+    setShowBulkModal(true);
   };
-  const saveLesson = async () => {
+
+  const previewDates = generateLessonDates(bulkForm.start_date, parseInt(bulkForm.weeks) || 0, bulkForm.days);
+
+  const saveBulkLessons = async () => {
+    if (!bulkForm.course_id || previewDates.length === 0) { toast("Välj kurs, startdatum och minst en dag."); return; }
     setSaving(true);
-    const res = await fetch("/api/admin/lessons", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(lessonForm) });
+    let failed = 0;
+    for (let i = 0; i < previewDates.length; i++) {
+      const res = await fetch("/api/admin/lessons", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          course_id: bulkForm.course_id,
+          title: `${bulkForm.title_prefix} ${i + 1}`,
+          scheduled_at: previewDates[i].toISOString(),
+          duration_minutes: parseInt(bulkForm.duration_minutes) || 60,
+          meeting_link: bulkForm.meeting_link || null,
+        }),
+      });
+      if (!res.ok) failed++;
+    }
     setSaving(false);
-    if (res.ok) { setShowLessonModal(false); load(); toast("Lektion skapad!"); }
-    else toast("Något gick fel.");
+    setShowBulkModal(false);
+    load();
+    toast(failed > 0 ? `${previewDates.length - failed}/${previewDates.length} lektioner skapade.` : `${previewDates.length} lektioner skapade!`);
   };
+
   const deleteLesson = async (id: string) => {
     if (!confirm("Ta bort lektionen?")) return;
     await fetch("/api/admin/lessons", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
@@ -171,25 +225,23 @@ export default function AdminPanel() {
     setSaving(true);
     const res = await fetch("/api/admin/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipient_id: msgRecipient.id, ...msgForm }) });
     setSaving(false);
-    if (res.ok) { setShowMsgModal(false); toast("Meddelande skickat!"); }
+    if (res.ok) { setShowMsgModal(false); load(); toast("Meddelande skickat!"); }
     else toast("Något gick fel.");
   };
 
   const totalRevenue = enrollments.filter((e) => e.payment_status === "paid")
     .reduce((sum, e) => sum + ((e.course as { price_sek?: number } | null)?.price_sek ?? 0), 0);
 
-  const filteredLessons = selectedCourseId ? lessons.filter((l) => (l as { course_id?: string }).course_id === selectedCourseId) : lessons;
+  const filteredLessons = selectedCourseId ? lessons.filter((l) => l.course_id === selectedCourseId) : lessons;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Feedback toast */}
       {feedback && (
         <div className="fixed top-4 right-4 z-50 bg-[#7B3FB0] text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg">
           {feedback}
         </div>
       )}
 
-      {/* Header */}
       <div className="bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div>
@@ -201,7 +253,6 @@ export default function AdminPanel() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Tabs */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-8 flex-wrap">
           {([["overview", "Översikt"], ["students", "Elever"], ["courses", "Kurser"], ["lessons", "Lektioner"], ["messages", "Meddelanden"]] as [Tab, string][]).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
@@ -227,7 +278,6 @@ export default function AdminPanel() {
                 </div>
               ))}
             </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                 <h2 className="font-semibold text-gray-900 mb-4">Senast anmälda elever</h2>
@@ -246,28 +296,24 @@ export default function AdminPanel() {
                   {students.length === 0 && <p className="text-sm text-gray-400">Inga elever ännu.</p>}
                 </div>
               </div>
-
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                 <h2 className="font-semibold text-gray-900 mb-4">Kommande lektioner</h2>
                 <div className="space-y-3">
-                  {lessons
-                    .filter((l) => l.scheduled_at && new Date(l.scheduled_at) >= new Date())
-                    .slice(0, 5)
-                    .map((l) => (
-                      <div key={l.id} className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "#F5EEFF" }}>
-                          <svg className="w-4 h-4" style={{ color: "#7B3FB0" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{l.title}</p>
-                          <p className="text-xs text-gray-400">
-                            {l.scheduled_at ? new Date(l.scheduled_at).toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "–"}
-                          </p>
-                        </div>
+                  {lessons.filter((l) => l.scheduled_at && new Date(l.scheduled_at) >= new Date()).slice(0, 5).map((l) => (
+                    <div key={l.id} className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "#F5EEFF" }}>
+                        <svg className="w-4 h-4" style={{ color: "#7B3FB0" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
                       </div>
-                    ))}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{l.title}</p>
+                        <p className="text-xs text-gray-400">
+                          {l.scheduled_at ? new Date(l.scheduled_at).toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "–"}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                   {lessons.filter((l) => l.scheduled_at && new Date(l.scheduled_at) >= new Date()).length === 0 && (
                     <p className="text-sm text-gray-400">Inga kommande lektioner.</p>
                   )}
@@ -283,17 +329,10 @@ export default function AdminPanel() {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Elever ({students.length})</h2>
               <div className="flex gap-2">
-                <button onClick={() => { setEnrollForm({ student_id: "", course_id: "" }); setShowEnrollModal(true); }}
-                  className={btnSecondary}>
-                  + Lägg till i kurs
-                </button>
-                <button onClick={() => { setStudentForm({ email: "", full_name: "", password: "" }); setShowStudentModal(true); }}
-                  className={btnPrimary} style={{ backgroundColor: "#7B3FB0" }}>
-                  + Ny elev
-                </button>
+                <button onClick={() => { setEnrollForm({ student_id: "", course_id: "" }); setShowEnrollModal(true); }} className={btnSecondary}>+ Lägg till i kurs</button>
+                <button onClick={() => { setStudentForm({ email: "", full_name: "", password: "" }); setShowStudentModal(true); }} className={btnPrimary} style={{ backgroundColor: "#7B3FB0" }}>+ Ny elev</button>
               </div>
             </div>
-
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -337,9 +376,7 @@ export default function AdminPanel() {
                               ))}
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-gray-400 text-xs">
-                            {new Date(s.created_at).toLocaleDateString("sv-SE")}
-                          </td>
+                          <td className="px-6 py-4 text-gray-400 text-xs">{new Date(s.created_at).toLocaleDateString("sv-SE")}</td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2 justify-end">
                               <button onClick={() => openMsg(s)} className="text-xs text-gray-400 hover:text-[#7B3FB0]">Meddelande</button>
@@ -361,15 +398,11 @@ export default function AdminPanel() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Kurser ({courses.length})</h2>
-              <button onClick={openCreateCourse} className={btnPrimary} style={{ backgroundColor: "#7B3FB0" }}>
-                + Ny kurs
-              </button>
+              <button onClick={openCreateCourse} className={btnPrimary} style={{ backgroundColor: "#7B3FB0" }}>+ Ny kurs</button>
             </div>
             <div className="space-y-3">
               {courses.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center text-gray-400 text-sm">
-                  Inga kurser ännu. Skapa din första kurs!
-                </div>
+                <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center text-gray-400 text-sm">Inga kurser ännu. Skapa din första kurs!</div>
               ) : courses.map((c) => {
                 const enrolled = enrollments.filter((e) => e.course_id === c.id && e.payment_status === "paid").length;
                 return (
@@ -391,9 +424,7 @@ export default function AdminPanel() {
                       </p>
                     </div>
                     <div className="flex gap-2 shrink-0">
-                      <button onClick={() => { setSelectedCourseId(c.id); openLesson(c.id); }} className={btnSecondary}>
-                        + Lektion
-                      </button>
+                      <button onClick={() => { setSelectedCourseId(c.id); openBulkModal(c.id); }} className={btnSecondary}>+ Lektioner</button>
                       <button onClick={() => openEditCourse(c)} className={btnSecondary}>Redigera</button>
                       <button onClick={() => deleteCourse(c.id)} className="px-3 py-2 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50">Ta bort</button>
                     </div>
@@ -416,11 +447,10 @@ export default function AdminPanel() {
                   {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
                 </select>
               </div>
-              <button onClick={() => openLesson(selectedCourseId || undefined)} className={btnPrimary} style={{ backgroundColor: "#7B3FB0" }}>
-                + Ny lektion
+              <button onClick={() => openBulkModal(selectedCourseId || undefined)} className={btnPrimary} style={{ backgroundColor: "#7B3FB0" }}>
+                + Lägg till lektioner
               </button>
             </div>
-
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="divide-y divide-gray-50">
                 {filteredLessons.length === 0 ? (
@@ -439,12 +469,10 @@ export default function AdminPanel() {
                         <p className="font-medium text-gray-900 text-sm">{l.title}</p>
                         <p className="text-xs text-gray-400">
                           {l.course?.title} ·{" "}
-                          {d ? d.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Ingen tid"}
+                          {d ? d.toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Ingen tid"}
                         </p>
                         {l.meeting_link && (
-                          <a href={l.meeting_link} target="_blank" rel="noopener noreferrer" className="text-xs underline" style={{ color: "#7B3FB0" }}>
-                            Möteslänk
-                          </a>
+                          <a href={l.meeting_link} target="_blank" rel="noopener noreferrer" className="text-xs underline" style={{ color: "#7B3FB0" }}>Möteslänk</a>
                         )}
                       </div>
                       <button onClick={() => deleteLesson(l.id)} className="text-xs text-gray-400 hover:text-red-500 shrink-0">Ta bort</button>
@@ -458,27 +486,70 @@ export default function AdminPanel() {
 
         {/* MESSAGES */}
         {tab === "messages" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Skicka meddelande till elev</h2>
+          <div className="space-y-6">
+            {/* Send new message */}
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Skicka meddelande till elev</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {students.length === 0 ? (
+                  <p className="text-sm text-gray-400 col-span-3">Inga elever att skriva till.</p>
+                ) : students.map((s) => (
+                  <div key={s.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ backgroundColor: "#7B3FB0" }}>
+                      {(s.full_name ?? s.email ?? "?").charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{s.full_name ?? "–"}</p>
+                      <p className="text-xs text-gray-400 truncate">{s.email}</p>
+                    </div>
+                    <button onClick={() => openMsg(s)} className="text-xs font-medium px-3 py-1.5 rounded-lg shrink-0" style={{ backgroundColor: "#F5EEFF", color: "#7B3FB0" }}>
+                      Skriv
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {students.length === 0 ? (
-                <p className="text-sm text-gray-400 col-span-3">Inga elever att skriva till.</p>
-              ) : students.map((s) => (
-                <div key={s.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ backgroundColor: "#7B3FB0" }}>
-                    {(s.full_name ?? s.email ?? "?").charAt(0).toUpperCase()}
+
+            {/* Message history */}
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Skickade meddelanden ({messages.length})</h2>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                {messages.length === 0 ? (
+                  <div className="p-10 text-center text-gray-400 text-sm">Inga skickade meddelanden ännu.</div>
+                ) : (
+                  <div className="divide-y divide-gray-50">
+                    {messages.map((msg) => (
+                      <div key={msg.id} className="px-6 py-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5" style={{ backgroundColor: "#7B3FB0" }}>
+                              {(msg.recipient?.full_name ?? msg.recipient?.email ?? "?").charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-medium text-gray-900">
+                                  Till: {msg.recipient?.full_name ?? msg.recipient?.email ?? "–"}
+                                </span>
+                                {!msg.is_read && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium">Oläst</span>
+                                )}
+                                {msg.is_read && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 font-medium">Läst</span>
+                                )}
+                              </div>
+                              {msg.subject && <p className="text-xs font-medium text-gray-600 mt-0.5">{msg.subject}</p>}
+                              <p className="text-sm text-gray-500 mt-1 line-clamp-2">{msg.content}</p>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-400 shrink-0 mt-1">
+                            {new Date(msg.created_at).toLocaleDateString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{s.full_name ?? "–"}</p>
-                    <p className="text-xs text-gray-400 truncate">{s.email}</p>
-                  </div>
-                  <button onClick={() => openMsg(s)} className="text-xs font-medium px-3 py-1.5 rounded-lg shrink-0" style={{ backgroundColor: "#F5EEFF", color: "#7B3FB0" }}>
-                    Skriv
-                  </button>
-                </div>
-              ))}
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -512,23 +583,88 @@ export default function AdminPanel() {
         </Modal>
       )}
 
-      {/* Lesson Modal */}
-      {showLessonModal && (
-        <Modal title="Ny lektion" onClose={() => setShowLessonModal(false)}>
+      {/* Bulk Lesson Modal */}
+      {showBulkModal && (
+        <Modal title="Lägg till lektioner" onClose={() => setShowBulkModal(false)} wide>
           <div className="space-y-4">
             <Field label="Kurs *">
-              <select className={inputCls} value={lessonForm.course_id} onChange={(e) => setLessonForm({ ...lessonForm, course_id: e.target.value })}>
+              <select className={inputCls} value={bulkForm.course_id} onChange={(e) => setBulkForm({ ...bulkForm, course_id: e.target.value })}>
                 <option value="">Välj kurs...</option>
                 {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
               </select>
             </Field>
-            <Field label="Titel *"><input className={inputCls} value={lessonForm.title} onChange={(e) => setLessonForm({ ...lessonForm, title: e.target.value })} placeholder="T.ex. Lektion 1 – Introduktion" /></Field>
-            <Field label="Datum & tid"><input className={inputCls} type="datetime-local" value={lessonForm.scheduled_at} onChange={(e) => setLessonForm({ ...lessonForm, scheduled_at: e.target.value })} /></Field>
-            <Field label="Längd (minuter)"><input className={inputCls} type="number" value={lessonForm.duration_minutes} onChange={(e) => setLessonForm({ ...lessonForm, duration_minutes: e.target.value })} /></Field>
-            <Field label="Google Meet / Zoom-länk"><input className={inputCls} value={lessonForm.meeting_link} onChange={(e) => setLessonForm({ ...lessonForm, meeting_link: e.target.value })} placeholder="https://meet.google.com/..." /></Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Titelprefx"><input className={inputCls} value={bulkForm.title_prefix} onChange={(e) => setBulkForm({ ...bulkForm, title_prefix: e.target.value })} placeholder="Lektion" /></Field>
+              <Field label="Antal veckor"><input className={inputCls} type="number" min="1" max="52" value={bulkForm.weeks} onChange={(e) => setBulkForm({ ...bulkForm, weeks: e.target.value })} /></Field>
+            </div>
+
+            <Field label="Startdatum *">
+              <input className={inputCls} type="date" value={bulkForm.start_date} onChange={(e) => setBulkForm({ ...bulkForm, start_date: e.target.value })} />
+            </Field>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Veckodagar & tider *</label>
+              <div className="space-y-2 rounded-xl border border-gray-100 p-3 bg-gray-50">
+                {DAY_NAMES.map((day, idx) => (
+                  <div key={idx} className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer flex-1">
+                      <input
+                        type="checkbox"
+                        checked={bulkForm.days[idx].enabled}
+                        onChange={(e) => {
+                          const days = [...bulkForm.days];
+                          days[idx] = { ...days[idx], enabled: e.target.checked };
+                          setBulkForm({ ...bulkForm, days });
+                        }}
+                        className="w-4 h-4 rounded accent-[#7B3FB0]"
+                      />
+                      <span className="text-sm text-gray-700 w-20">{day}</span>
+                    </label>
+                    {bulkForm.days[idx].enabled && (
+                      <input
+                        type="time"
+                        value={bulkForm.days[idx].time}
+                        onChange={(e) => {
+                          const days = [...bulkForm.days];
+                          days[idx] = { ...days[idx], time: e.target.value };
+                          setBulkForm({ ...bulkForm, days });
+                        }}
+                        className="px-2 py-1 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Längd (min)"><input className={inputCls} type="number" value={bulkForm.duration_minutes} onChange={(e) => setBulkForm({ ...bulkForm, duration_minutes: e.target.value })} /></Field>
+              <Field label="Möteslänk"><input className={inputCls} value={bulkForm.meeting_link} onChange={(e) => setBulkForm({ ...bulkForm, meeting_link: e.target.value })} placeholder="meet.google.com/..." /></Field>
+            </div>
+
+            {/* Preview */}
+            {previewDates.length > 0 && (
+              <div className="rounded-xl bg-purple-50 border border-purple-100 p-3">
+                <p className="text-xs font-semibold text-purple-700 mb-2">{previewDates.length} lektioner kommer skapas:</p>
+                <div className="max-h-32 overflow-y-auto space-y-0.5">
+                  {previewDates.map((d, i) => (
+                    <p key={i} className="text-xs text-purple-600">
+                      {bulkForm.title_prefix} {i + 1} – {d.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+            {bulkForm.start_date && previewDates.length === 0 && (
+              <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">Välj minst en dag i veckan.</p>
+            )}
+
             <div className="flex gap-2 pt-2">
-              <button onClick={saveLesson} disabled={saving} className={`flex-1 ${btnPrimary}`} style={{ backgroundColor: "#7B3FB0" }}>{saving ? "Sparar..." : "Skapa lektion"}</button>
-              <button onClick={() => setShowLessonModal(false)} className={btnSecondary}>Avbryt</button>
+              <button onClick={saveBulkLessons} disabled={saving || previewDates.length === 0} className={`flex-1 ${btnPrimary}`} style={{ backgroundColor: "#7B3FB0" }}>
+                {saving ? "Skapar..." : `Skapa ${previewDates.length > 0 ? previewDates.length + " " : ""}lektioner`}
+              </button>
+              <button onClick={() => setShowBulkModal(false)} className={btnSecondary}>Avbryt</button>
             </div>
           </div>
         </Modal>
