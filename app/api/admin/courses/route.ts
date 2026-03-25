@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
       sessions_per_week: Number(body.sessions_per_week) || 2,
       duration_weeks: body.duration_weeks ? Number(body.duration_weeks) : null,
       teacher_id: body.teacher_id || null,
+      max_participants: body.max_participants ? Number(body.max_participants) : null,
       is_active: true,
     })
     .select()
@@ -55,6 +56,7 @@ export async function PUT(req: NextRequest) {
       sessions_per_week: Number(rest.sessions_per_week) || 2,
       duration_weeks: rest.duration_weeks ? Number(rest.duration_weeks) : null,
       teacher_id: rest.teacher_id || null,
+      max_participants: rest.max_participants ? Number(rest.max_participants) : null,
       is_active: rest.is_active ?? true,
     })
     .eq("id", id)

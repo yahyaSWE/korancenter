@@ -19,6 +19,7 @@ export interface Course {
   image_url: string | null
   teacher_id: string | null
   is_active: boolean
+  max_participants: number | null
   created_at: string
   teacher?: Profile
 }
