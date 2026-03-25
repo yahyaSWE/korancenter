@@ -36,6 +36,26 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(data.user);
 }
 
+export async function PATCH(req: NextRequest) {
+  const { supabase, error } = await requireAdmin();
+  if (error) return error;
+
+  const { id, role } = await req.json();
+  if (!id || !["student", "teacher"].includes(role)) {
+    return NextResponse.json({ error: "id och role (student/teacher) krävs" }, { status: 400 });
+  }
+
+  const { data, error: err } = await supabase!
+    .from("profiles")
+    .update({ role })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (err) return NextResponse.json({ error: err.message }, { status: 500 });
+  return NextResponse.json(data);
+}
+
 export async function DELETE(req: NextRequest) {
   const { error } = await requireAdmin();
   if (error) return error;

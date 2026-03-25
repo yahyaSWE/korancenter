@@ -114,7 +114,7 @@ export default function AdminPanel() {
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [msgRecipient, setMsgRecipient] = useState<Profile | null>(null);
 
-  const [courseForm, setCourseForm] = useState({ title: "", description: "", level: "beginner", price_sek: "", sessions_per_week: "2", duration_weeks: "", max_participants: "" });
+  const [courseForm, setCourseForm] = useState({ title: "", description: "", level: "beginner", price_sek: "", sessions_per_week: "2", duration_weeks: "", max_participants: "", teacher_id: "" });
   const [bulkForm, setBulkForm] = useState({ course_id: "", title_prefix: "Lektion", start_date: "", weeks: "4", duration_minutes: "60", meeting_link: "", days: defaultDays() });
   const [studentForm, setStudentForm] = useState({ email: "", full_name: "", password: "" });
   const [enrollForm, setEnrollForm] = useState({ student_id: "", course_id: "" });
@@ -148,12 +148,12 @@ export default function AdminPanel() {
   // --- Courses ---
   const openCreateCourse = () => {
     setEditCourse(null);
-    setCourseForm({ title: "", description: "", level: "beginner", price_sek: "", sessions_per_week: "2", duration_weeks: "", max_participants: "" });
+    setCourseForm({ title: "", description: "", level: "beginner", price_sek: "", sessions_per_week: "2", duration_weeks: "", max_participants: "", teacher_id: "" });
     setShowCourseModal(true);
   };
   const openEditCourse = (c: Course) => {
     setEditCourse(c);
-    setCourseForm({ title: c.title, description: c.description ?? "", level: c.level ?? "beginner", price_sek: String(c.price_sek), sessions_per_week: String(c.sessions_per_week), duration_weeks: c.duration_weeks ? String(c.duration_weeks) : "", max_participants: c.max_participants ? String(c.max_participants) : "" });
+    setCourseForm({ title: c.title, description: c.description ?? "", level: c.level ?? "beginner", price_sek: String(c.price_sek), sessions_per_week: String(c.sessions_per_week), duration_weeks: c.duration_weeks ? String(c.duration_weeks) : "", max_participants: c.max_participants ? String(c.max_participants) : "", teacher_id: c.teacher_id ?? "" });
     setShowCourseModal(true);
   };
   const saveCourse = async () => {
@@ -221,6 +221,11 @@ export default function AdminPanel() {
     if (!confirm("Ta bort eleven permanent?")) return;
     await fetch("/api/admin/students", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
     load(); toast("Elev borttagen.");
+  };
+  const changeRole = async (id: string, role: "student" | "teacher") => {
+    const res = await fetch("/api/admin/students", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, role }) });
+    if (res.ok) { load(); toast(role === "teacher" ? "Utsedd till lärare!" : "Ändrad till elev."); }
+    else toast("Något gick fel.");
   };
 
   // --- Enrollments ---
@@ -380,7 +385,8 @@ export default function AdminPanel() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Elev</th>
+                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Användare</th>
+                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Roll</th>
                       <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Kurser</th>
                       <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Registrerad</th>
                       <th className="px-6 py-3" />
@@ -388,7 +394,7 @@ export default function AdminPanel() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {students.length === 0 ? (
-                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400 text-sm">Inga elever ännu.</td></tr>
+                      <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400 text-sm">Inga elever ännu.</td></tr>
                     ) : students.map((s) => {
                       const studentEnrollments = enrollments.filter((e) => e.student_id === s.id && e.payment_status === "paid");
                       return (
@@ -403,6 +409,11 @@ export default function AdminPanel() {
                                 <p className="text-xs text-gray-400">{s.email}</p>
                               </div>
                             </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.role === "teacher" ? "bg-blue-50 text-blue-600" : "bg-gray-100 text-gray-500"}`}>
+                              {s.role === "teacher" ? "Lärare" : "Elev"}
+                            </span>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-wrap gap-1">
@@ -420,8 +431,13 @@ export default function AdminPanel() {
                           </td>
                           <td className="px-6 py-4 text-gray-400 text-xs">{new Date(s.created_at).toLocaleDateString("sv-SE")}</td>
                           <td className="px-6 py-4">
-                            <div className="flex items-center gap-2 justify-end">
+                            <div className="flex items-center gap-2 justify-end flex-wrap">
                               <button onClick={() => openMsg(s)} className="text-xs text-gray-400 hover:text-[#7B3FB0]">Meddelande</button>
+                              {s.role === "teacher" ? (
+                                <button onClick={() => changeRole(s.id, "student")} className="text-xs text-amber-500 hover:text-amber-700">→ Elev</button>
+                              ) : (
+                                <button onClick={() => changeRole(s.id, "teacher")} className="text-xs text-green-600 hover:text-green-800">→ Lärare</button>
+                              )}
                               <button onClick={() => deleteStudent(s.id)} className="text-xs text-gray-400 hover:text-red-500">Ta bort</button>
                             </div>
                           </td>
@@ -552,43 +568,44 @@ export default function AdminPanel() {
               </div>
             </div>
 
-            {/* Message history */}
+            {/* All messages overview */}
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Skickade meddelanden ({messages.length})</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Alla meddelanden ({messages.length})</h2>
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 {messages.length === 0 ? (
-                  <div className="p-10 text-center text-gray-400 text-sm">Inga skickade meddelanden ännu.</div>
+                  <div className="p-10 text-center text-gray-400 text-sm">Inga meddelanden ännu.</div>
                 ) : (
                   <div className="divide-y divide-gray-50">
-                    {messages.map((msg) => (
-                      <div key={msg.id} className="px-6 py-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex items-start gap-3 flex-1 min-w-0">
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5" style={{ backgroundColor: "#7B3FB0" }}>
-                              {(msg.recipient?.full_name ?? msg.recipient?.email ?? "?").charAt(0).toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-sm font-medium text-gray-900">
-                                  Till: {msg.recipient?.full_name ?? msg.recipient?.email ?? "–"}
-                                </span>
-                                {!msg.is_read && (
-                                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium">Oläst</span>
-                                )}
-                                {msg.is_read && (
-                                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 font-medium">Läst</span>
-                                )}
+                    {messages.map((msg) => {
+                      const senderName = msg.sender?.full_name ?? msg.sender?.email ?? "–";
+                      const recipientName = msg.recipient?.full_name ?? msg.recipient?.email ?? "–";
+                      return (
+                        <div key={msg.id} className="px-6 py-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5" style={{ backgroundColor: "#7B3FB0" }}>
+                                {senderName.charAt(0).toUpperCase()}
                               </div>
-                              {msg.subject && <p className="text-xs font-medium text-gray-600 mt-0.5">{msg.subject}</p>}
-                              <p className="text-sm text-gray-500 mt-1 line-clamp-2">{msg.content}</p>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-medium text-gray-900">{senderName}</span>
+                                  <span className="text-xs text-gray-400">→</span>
+                                  <span className="text-sm font-medium text-gray-700">{recipientName}</span>
+                                  {!msg.is_read && (
+                                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium">Oläst</span>
+                                  )}
+                                </div>
+                                {msg.subject && <p className="text-xs font-medium text-gray-600 mt-0.5">{msg.subject}</p>}
+                                <p className="text-sm text-gray-500 mt-1 line-clamp-2">{msg.content}</p>
+                              </div>
                             </div>
+                            <p className="text-xs text-gray-400 shrink-0 mt-1">
+                              {new Date(msg.created_at).toLocaleDateString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                            </p>
                           </div>
-                          <p className="text-xs text-gray-400 shrink-0 mt-1">
-                            {new Date(msg.created_at).toLocaleDateString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                          </p>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -689,6 +706,14 @@ export default function AdminPanel() {
               <Field label="Längd (veckor)"><input className={inputCls} type="number" placeholder="Lämna tomt om löpande" value={courseForm.duration_weeks} onChange={(e) => setCourseForm({ ...courseForm, duration_weeks: e.target.value })} /></Field>
               <Field label="Max deltagare"><input className={inputCls} type="number" placeholder="Lämna tomt för obegränsat" value={courseForm.max_participants} onChange={(e) => setCourseForm({ ...courseForm, max_participants: e.target.value })} /></Field>
             </div>
+            <Field label="Lärare">
+              <select className={inputCls} value={courseForm.teacher_id} onChange={(e) => setCourseForm({ ...courseForm, teacher_id: e.target.value })}>
+                <option value="">Ingen lärare tilldelad</option>
+                {students.filter((s) => s.role === "teacher").map((t) => (
+                  <option key={t.id} value={t.id}>{t.full_name ?? t.email}</option>
+                ))}
+              </select>
+            </Field>
             <div className="flex gap-2 pt-2">
               <button onClick={saveCourse} disabled={saving} className={`flex-1 ${btnPrimary}`} style={{ backgroundColor: "#7B3FB0" }}>{saving ? "Sparar..." : editCourse ? "Spara ändringar" : "Skapa kurs"}</button>
               <button onClick={() => setShowCourseModal(false)} className={btnSecondary}>Avbryt</button>

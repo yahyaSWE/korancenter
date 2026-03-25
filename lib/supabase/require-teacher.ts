@@ -1,0 +1,23 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+
+export async function requireTeacher() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { supabase: null, user: null, error: NextResponse.json({ error: "Ej inloggad" }, { status: 401 }) };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || !["teacher", "admin"].includes(profile.role)) {
+    return { supabase: null, user: null, error: NextResponse.json({ error: "Inte behörig" }, { status: 403 }) };
+  }
+
+  return { supabase, user, error: null };
+}

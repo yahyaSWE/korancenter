@@ -15,7 +15,7 @@ type MessageRow = {
   recipient: { id: string; full_name: string | null; email: string | null } | null;
 };
 
-type Teacher = {
+type Student = {
   id: string;
   full_name: string | null;
   email: string | null;
@@ -26,14 +26,12 @@ function fmtDate(iso: string) {
   const today = new Date();
   const sameDay = d.getDate() === today.getDate() && d.getMonth() === today.getMonth();
   if (sameDay) return "Idag " + d.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
-  const diff = Math.floor((today.getTime() - d.getTime()) / 86400000);
-  if (diff === 1) return "Igår";
-  return d.toLocaleDateString("sv-SE");
+  return d.toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
 }
 
-export default function Meddelanden() {
+export default function LarareMeddelanden() {
   const [messages, setMessages] = useState<MessageRow[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [myId, setMyId] = useState<string>("");
   const [selected, setSelected] = useState<MessageRow | null>(null);
   const [showCompose, setShowCompose] = useState(false);
@@ -41,8 +39,8 @@ export default function Meddelanden() {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const loadMessages = () =>
-    fetch("/api/portal/messages")
+  const load = () =>
+    fetch("/api/teacher/messages")
       .then((r) => r.json())
       .then((data) => { if (!data.error) setMessages(data); });
 
@@ -52,26 +50,27 @@ export default function Meddelanden() {
       if (user) setMyId(user.id);
     });
 
-    supabase
-      .from("enrollments")
-      .select("course:courses!course_id(teacher_id, teacher:profiles!teacher_id(id, full_name, email))")
-      .eq("payment_status", "paid")
-      .then(({ data }) => {
-        const map = new Map<string, Teacher>();
-        for (const e of data ?? []) {
-          const t = (e.course as { teacher: Teacher | null } | null)?.teacher;
-          if (t?.id && !map.has(t.id)) map.set(t.id, t);
+    Promise.all([
+      load(),
+      fetch("/api/teacher/students").then((r) => r.json()),
+    ]).then(([, enrollments]) => {
+      if (!enrollments.error) {
+        const map = new Map<string, Student>();
+        for (const e of enrollments) {
+          if (e.student && !map.has(e.student.id)) {
+            map.set(e.student.id, e.student);
+          }
         }
-        setTeachers(Array.from(map.values()));
-      });
-
-    loadMessages().then(() => setLoading(false));
+        setStudents(Array.from(map.values()));
+      }
+      setLoading(false);
+    });
   }, []);
 
   const handleSelect = async (msg: MessageRow) => {
     setSelected(msg);
     if (!msg.is_read && msg.recipient_id === myId) {
-      await fetch("/api/portal/messages", {
+      await fetch("/api/teacher/messages", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: msg.id }),
@@ -83,7 +82,7 @@ export default function Meddelanden() {
   const sendMsg = async () => {
     if (!composeForm.recipient_id || !composeForm.content) return;
     setSending(true);
-    const res = await fetch("/api/portal/messages", {
+    const res = await fetch("/api/teacher/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(composeForm),
@@ -92,7 +91,7 @@ export default function Meddelanden() {
     if (res.ok) {
       setShowCompose(false);
       setComposeForm({ recipient_id: "", subject: "", content: "" });
-      loadMessages();
+      load();
     }
   };
 
@@ -109,13 +108,8 @@ export default function Meddelanden() {
 
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Meddelanden</h1>
-        </div>
-        <div className="flex items-center justify-center h-64">
-          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#7B3FB0", borderTopColor: "transparent" }} />
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#7B3FB0", borderTopColor: "transparent" }} />
       </div>
     );
   }
@@ -125,17 +119,15 @@ export default function Meddelanden() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Meddelanden</h1>
-          <p className="text-gray-500 mt-1">Kommunikation med dina lärare och Korancenter.</p>
+          <p className="text-gray-500 mt-1">Kommunikation med dina elever.</p>
         </div>
-        {teachers.length > 0 && (
-          <button
-            onClick={() => { setShowCompose(true); setComposeForm({ recipient_id: teachers[0].id, subject: "", content: "" }); }}
-            className="px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90"
-            style={{ backgroundColor: "#7B3FB0" }}
-          >
-            + Skriv till lärare
-          </button>
-        )}
+        <button
+          onClick={() => { setShowCompose(true); setComposeForm({ recipient_id: "", subject: "", content: "" }); }}
+          className="px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90"
+          style={{ backgroundColor: "#7B3FB0" }}
+        >
+          + Nytt meddelande
+        </button>
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" style={{ minHeight: 500 }}>
@@ -143,14 +135,13 @@ export default function Meddelanden() {
           {/* List */}
           <div className="lg:col-span-2 border-r border-gray-100 flex flex-col">
             <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Alla meddelanden</p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Konversationer</p>
               {unread > 0 && (
                 <span className="text-xs font-bold text-white px-2 py-0.5 rounded-full" style={{ backgroundColor: "#7B3FB0" }}>
                   {unread} nya
                 </span>
               )}
             </div>
-
             {messages.length === 0 ? (
               <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Inga meddelanden ännu.</div>
             ) : (
@@ -204,9 +195,7 @@ export default function Meddelanden() {
                       {getOtherName(selected).charAt(0).toUpperCase()}
                     </div>
                     <p className="text-xs text-gray-500">
-                      <span className="font-medium">
-                        {isSentByMe(selected) ? "Till: " + getOtherName(selected) : "Från: " + getOtherName(selected)}
-                      </span>
+                      <span className="font-medium">{isSentByMe(selected) ? "Till: " + getOtherName(selected) : "Från: " + getOtherName(selected)}</span>
                       {" · "}{fmtDate(selected.created_at)}
                     </p>
                   </div>
@@ -214,7 +203,7 @@ export default function Meddelanden() {
                 <div className="flex-1 px-6 py-5 overflow-y-auto">
                   <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{selected.content}</p>
                 </div>
-                {!isSentByMe(selected) && teachers.some((t) => t.id === selected.sender_id) && (
+                {!isSentByMe(selected) && (
                   <div className="px-6 py-4 border-t border-gray-100">
                     <button
                       onClick={() => {
@@ -239,7 +228,7 @@ export default function Meddelanden() {
                   <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                   </svg>
-                  <p className="text-sm">Välj ett meddelande för att läsa det</p>
+                  <p className="text-sm">Välj ett meddelande</p>
                 </div>
               </div>
             )}
@@ -252,7 +241,7 @@ export default function Meddelanden() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-900">Skriv till lärare</h2>
+              <h2 className="font-semibold text-gray-900">Nytt meddelande</h2>
               <button onClick={() => setShowCompose(false)} className="text-gray-400 hover:text-gray-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -267,9 +256,9 @@ export default function Meddelanden() {
                   value={composeForm.recipient_id}
                   onChange={(e) => setComposeForm({ ...composeForm, recipient_id: e.target.value })}
                 >
-                  <option value="">Välj lärare...</option>
-                  {teachers.map((t) => (
-                    <option key={t.id} value={t.id}>{t.full_name ?? t.email}</option>
+                  <option value="">Välj elev...</option>
+                  {students.map((s) => (
+                    <option key={s.id} value={s.id}>{s.full_name ?? s.email}</option>
                   ))}
                 </select>
               </div>
@@ -279,7 +268,7 @@ export default function Meddelanden() {
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]"
                   value={composeForm.subject}
                   onChange={(e) => setComposeForm({ ...composeForm, subject: e.target.value })}
-                  placeholder="T.ex. Fråga om lektionen"
+                  placeholder="T.ex. Feedback från lektionen"
                 />
               </div>
               <div>

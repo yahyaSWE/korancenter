@@ -46,6 +46,16 @@ export async function middleware(req: NextRequest) {
     // Rollkontroll sker i komponenten via Supabase
   }
 
+  // Lärarportal – kräver teacher eller admin
+  if (pathname.startsWith("/larare")) {
+    if (!user) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/logga-in";
+      url.searchParams.set("next", pathname);
+      return NextResponse.redirect(url);
+    }
+  }
+
   // Omdirigera inloggade från /logga-in till /portal
   if (pathname === "/logga-in" && user) {
     return NextResponse.redirect(new URL("/portal", req.url));
@@ -55,5 +65,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/portal/:path*", "/admin/:path*", "/logga-in"],
+  matcher: ["/portal/:path*", "/admin/:path*", "/larare/:path*", "/logga-in"],
 };

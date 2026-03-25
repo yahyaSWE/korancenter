@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --yes)",
+      "Read(//c/Users/Jbl/Desktop/**)",
+      "Bash(npx create-next-app@latest korancenter-temp --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --yes)",
+      "Bash(cp -r /c/Users/Jbl/Desktop/korancenter-temp/. /c/Users/Jbl/Desktop/korancenter/)",
+      "Bash(rm -rf /c/Users/Jbl/Desktop/korancenter-temp)",
+      "Bash(mkdir -p /c/Users/Jbl/Desktop/korancenter/public/images)",
+      "Bash(cp \"/c/Users/Jbl/Desktop/korancenter/images/Skärmbild 2026-03-24 173419.png\" /c/Users/Jbl/Desktop/korancenter/public/images/logo.png)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(command -v npm)",
+      "Bash(where npm:*)",
+      "Bash(ls /c/Users/Jbl/Desktop/korancenter/node_modules/.bin/next*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(\"C:\\\\Program Files\\\\nodejs\\\\node.exe\" node_modules/next/dist/bin/next build)"
+    ]
+  }
+}
