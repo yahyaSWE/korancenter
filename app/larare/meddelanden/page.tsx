@@ -53,8 +53,9 @@ export default function LarareMeddelanden() {
     Promise.all([
       load(),
       fetch("/api/teacher/students").then((r) => r.json()),
-    ]).then(([, enrollments]) => {
-      if (!enrollments.error) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ]).then(([, enrollments]: [void, any]) => {
+      if (!enrollments.error && Array.isArray(enrollments)) {
         const map = new Map<string, Student>();
         for (const e of enrollments) {
           if (e.student && !map.has(e.student.id)) {

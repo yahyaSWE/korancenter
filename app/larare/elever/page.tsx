@@ -29,11 +29,13 @@ export default function LarareElever() {
   useEffect(() => {
     fetch("/api/teacher/students")
       .then((r) => r.json())
-      .then((data: StudentEnrollment[]) => {
-        if (data.error) { setLoading(false); return; }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((data: any) => {
+        if (data.error || !Array.isArray(data)) { setLoading(false); return; }
+        const enrollments: StudentEnrollment[] = data;
         // Group by student
         const map = new Map<string, Student>();
-        for (const e of data) {
+        for (const e of enrollments) {
           if (!e.student) continue;
           const existing = map.get(e.student.id);
           if (existing) {

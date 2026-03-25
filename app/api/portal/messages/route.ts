@@ -40,8 +40,9 @@ export async function POST(req: NextRequest) {
     .limit(50);
 
   const teacherIds = (enrollment ?? [])
-    .map((e) => (e.course as { teacher_id: string | null } | null)?.teacher_id)
-    .filter(Boolean);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((e) => ((e.course as any)?.teacher_id as string | null))
+    .filter(Boolean) as string[];
 
   if (!teacherIds.includes(recipient_id)) {
     return NextResponse.json({ error: "Du kan bara skicka till din lärare" }, { status: 403 });
