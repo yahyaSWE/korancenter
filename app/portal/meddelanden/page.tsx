@@ -59,7 +59,8 @@ export default function Meddelanden() {
       .then(({ data }) => {
         const map = new Map<string, Teacher>();
         for (const e of data ?? []) {
-          const t = (e.course as { teacher: Teacher | null } | null)?.teacher;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const t = ((e.course as any)?.teacher) as Teacher | null | undefined;
           if (t?.id && !map.has(t.id)) map.set(t.id, t);
         }
         setTeachers(Array.from(map.values()));
