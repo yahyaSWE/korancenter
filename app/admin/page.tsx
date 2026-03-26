@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Profile, Course, Enrollment, Message } from "@/lib/supabase/types";
 
-type Tab = "overview" | "students" | "courses" | "lessons" | "messages" | "material";
+type Tab = "overview" | "students" | "teachers" | "courses" | "lessons" | "messages" | "material";
 
 type EnrollmentRow = Enrollment & {
   student: Pick<Profile, "id" | "full_name" | "email"> | null;
@@ -301,7 +301,7 @@ export default function AdminPanel() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-8 flex-wrap">
-          {([["overview", "Översikt"], ["students", "Elever"], ["courses", "Kurser"], ["lessons", "Lektioner"], ["messages", "Meddelanden"], ["material", "Material"]] as [Tab, string][]).map(([key, label]) => (
+          {([["overview", "Översikt"], ["students", "Elever"], ["teachers", "Lärare"], ["courses", "Kurser"], ["lessons", "Lektioner"], ["messages", "Meddelanden"], ["material", "Material"]] as [Tab, string][]).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === key ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>
               {label}
@@ -374,7 +374,7 @@ export default function AdminPanel() {
         {tab === "students" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Elever ({students.length})</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Elever ({students.filter(s => s.role === "student").length})</h2>
               <div className="flex gap-2">
                 <button onClick={() => { setEnrollForm({ student_id: "", course_id: "" }); setShowEnrollModal(true); }} className={btnSecondary}>+ Lägg till i kurs</button>
                 <button onClick={() => { setStudentForm({ email: "", full_name: "", password: "" }); setShowStudentModal(true); }} className={btnPrimary} style={{ backgroundColor: "#7B3FB0" }}>+ Ny elev</button>
@@ -395,7 +395,7 @@ export default function AdminPanel() {
                   <tbody className="divide-y divide-gray-50">
                     {students.length === 0 ? (
                       <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400 text-sm">Inga elever ännu.</td></tr>
-                    ) : students.map((s) => {
+                    ) : students.filter(s => s.role === "student").map((s) => {
                       const studentEnrollments = enrollments.filter((e) => e.student_id === s.id && e.payment_status === "paid");
                       return (
                         <tr key={s.id} className="hover:bg-gray-50 transition-colors">
@@ -433,12 +433,71 @@ export default function AdminPanel() {
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2 justify-end flex-wrap">
                               <button onClick={() => openMsg(s)} className="text-xs text-gray-400 hover:text-[#7B3FB0]">Meddelande</button>
-                              {s.role === "teacher" ? (
-                                <button onClick={() => changeRole(s.id, "student")} className="text-xs text-amber-500 hover:text-amber-700">→ Elev</button>
-                              ) : (
-                                <button onClick={() => changeRole(s.id, "teacher")} className="text-xs text-green-600 hover:text-green-800">→ Lärare</button>
-                              )}
+                              <button onClick={() => changeRole(s.id, "teacher")} className="text-xs text-green-600 hover:text-green-800">→ Lärare</button>
                               <button onClick={() => deleteStudent(s.id)} className="text-xs text-gray-400 hover:text-red-500">Ta bort</button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TEACHERS */}
+        {tab === "teachers" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Lärare ({students.filter(s => s.role === "teacher").length})</h2>
+              <p className="text-sm text-gray-400">Utse lärare via elevlistan eller skapa ett konto och ändra roll.</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Lärare</th>
+                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Tilldelade kurser</th>
+                      <th className="px-6 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {students.filter(s => s.role === "teacher").length === 0 ? (
+                      <tr><td colSpan={3} className="px-6 py-10 text-center text-gray-400 text-sm">Inga lärare ännu. Gå till Elever-fliken och klicka "→ Lärare" på en användare.</td></tr>
+                    ) : students.filter(s => s.role === "teacher").map((t) => {
+                      const teacherCourses = courses.filter(c => c.teacher_id === t.id);
+                      return (
+                        <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: "#7B3FB0" }}>
+                                {(t.full_name ?? t.email ?? "?").charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">{t.full_name ?? "–"}</p>
+                                <p className="text-xs text-gray-400">{t.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-wrap gap-1">
+                              {teacherCourses.length === 0 ? (
+                                <span className="text-xs text-gray-400">Inga kurser tilldelade</span>
+                              ) : teacherCourses.map(c => (
+                                <span key={c.id} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: "#F5EEFF", color: "#7B3FB0" }}>
+                                  {c.title}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3 justify-end">
+                              <button onClick={() => openMsg(t)} className="text-xs text-gray-400 hover:text-[#7B3FB0]">Meddelande</button>
+                              <button onClick={() => changeRole(t.id, "student")} className="text-xs text-amber-500 hover:text-amber-700">→ Elev</button>
+                              <button onClick={() => deleteStudent(t.id)} className="text-xs text-gray-400 hover:text-red-500">Ta bort</button>
                             </div>
                           </td>
                         </tr>

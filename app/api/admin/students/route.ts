@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const { supabase, error } = await requireAdmin();
+  const { error } = await requireAdmin();
   if (error) return error;
 
   const { id, role } = await req.json();
@@ -45,7 +45,9 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "id och role (student/teacher) krävs" }, { status: 400 });
   }
 
-  const { data, error: err } = await supabase!
+  // Use admin client to bypass RLS on profiles
+  const adminClient = createAdminClient();
+  const { data, error: err } = await adminClient
     .from("profiles")
     .update({ role })
     .eq("id", id)
