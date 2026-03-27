@@ -18,6 +18,13 @@ type CourseData = {
   enrolled_count: number;
 };
 
+type WaitlistForm = {
+  name: string;
+  email: string;
+  phone: string;
+  level_description: string;
+};
+
 const LEVEL_LABELS: Record<string, string> = {
   beginner: "Nybörjare",
   intermediate: "Mellannivå",
@@ -55,15 +62,17 @@ function SpotsBar({ enrolled, max }: { enrolled: number; max: number | null }) {
   );
 }
 
-function ApplyButton({ course, enrolledIds, onApply }: {
+function ApplyButton({ course, enrolledIds, userId, onApply, onWaitlist }: {
   course: CourseData;
   enrolledIds: Set<string>;
+  userId: string | null;
   onApply: (id: string) => Promise<void>;
+  onWaitlist: (course: CourseData) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [done, setDone]       = useState(false);
 
-  const isFull    = course.max_participants !== null && course.enrolled_count >= course.max_participants;
+  const isFull     = course.max_participants !== null && course.enrolled_count >= course.max_participants;
   const isEnrolled = enrolledIds.has(course.id);
 
   if (isEnrolled || done) {
@@ -76,9 +85,25 @@ function ApplyButton({ course, enrolledIds, onApply }: {
 
   if (isFull) {
     return (
-      <div className="w-full text-center font-semibold py-3 rounded-xl bg-gray-100 text-gray-400 text-sm cursor-not-allowed">
-        Fullbokad
-      </div>
+      <button
+        onClick={() => onWaitlist(course)}
+        className="block w-full text-center font-semibold py-3 rounded-xl border-2 transition-all hover:bg-amber-50"
+        style={{ borderColor: "#F59E0B", color: "#B45309" }}
+      >
+        Lägg mig i kö
+      </button>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <Link
+        href="/logga-in?next=/kurser"
+        className="block w-full text-center font-semibold py-3 rounded-xl transition-all hover:opacity-90"
+        style={{ backgroundColor: "#7B3FB0", color: "white" }}
+      >
+        Ansök nu
+      </Link>
     );
   }
 
@@ -99,13 +124,21 @@ function ApplyButton({ course, enrolledIds, onApply }: {
   );
 }
 
+const emptyWaitlist: WaitlistForm = { name: "", email: "", phone: "", level_description: "" };
+
 export default function Kurser() {
-  const [courses, setCourses]       = useState<CourseData[]>([]);
+  const [courses, setCourses]         = useState<CourseData[]>([]);
   const [enrolledIds, setEnrolledIds] = useState<Set<string>>(new Set());
-  const [userId, setUserId]         = useState<string | null>(null);
-  const [loading, setLoading]       = useState(true);
-  const [openFaq, setOpenFaq]       = useState<number | null>(null);
-  const [toast, setToast]           = useState("");
+  const [userId, setUserId]           = useState<string | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [openFaq, setOpenFaq]         = useState<number | null>(null);
+  const [toast, setToast]             = useState("");
+
+  // Waitlist modal state
+  const [waitlistCourse, setWaitlistCourse] = useState<CourseData | null>(null);
+  const [wForm, setWForm]                   = useState<WaitlistForm>(emptyWaitlist);
+  const [wLoading, setWLoading]             = useState(false);
+  const [wDone, setWDone]                   = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -130,10 +163,6 @@ export default function Kurser() {
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 4000); };
 
   const handleApply = async (courseId: string) => {
-    if (!userId) {
-      window.location.href = `/logga-in?next=/kurser`;
-      return;
-    }
     const res = await fetch("/api/portal/enroll", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -148,6 +177,33 @@ export default function Kurser() {
     }
   };
 
+  const openWaitlist = (course: CourseData) => {
+    setWaitlistCourse(course);
+    setWForm(emptyWaitlist);
+    setWDone(false);
+  };
+
+  const submitWaitlist = async () => {
+    if (!waitlistCourse) return;
+    if (!wForm.name || !wForm.email || !wForm.phone) {
+      showToast("Fyll i namn, e-post och telefon.");
+      return;
+    }
+    setWLoading(true);
+    const res = await fetch("/api/waitlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ course_id: waitlistCourse.id, ...wForm }),
+    });
+    const data = await res.json();
+    setWLoading(false);
+    if (res.ok) {
+      setWDone(true);
+    } else {
+      showToast(data.error ?? "Något gick fel.");
+    }
+  };
+
   return (
     <>
       <Navbar />
@@ -156,6 +212,86 @@ export default function Kurser() {
           {toast}
         </div>
       )}
+
+      {/* Waitlist Modal */}
+      {waitlistCourse && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">Anmäl intresse – {waitlistCourse.title}</h2>
+              <p className="text-sm text-gray-400 mt-1">Kursen är fullbokad. Fyll i formuläret så kontaktar vi dig om en plats öppnas.</p>
+            </div>
+
+            {wDone ? (
+              <div className="px-6 py-10 text-center">
+                <div className="text-4xl mb-3">✅</div>
+                <p className="font-semibold text-gray-900 mb-1">Du är tillagd i kön!</p>
+                <p className="text-sm text-gray-400 mb-6">Vi hör av oss via e-post eller telefon när en plats öppnas.</p>
+                <button onClick={() => setWaitlistCourse(null)} className="text-sm text-gray-400 hover:text-gray-600 underline">Stäng</button>
+              </div>
+            ) : (
+              <div className="px-6 py-5 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Namn *</label>
+                  <input
+                    value={wForm.name}
+                    onChange={(e) => setWForm(p => ({ ...p, name: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]/30"
+                    placeholder="Ditt fullständiga namn"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">E-post *</label>
+                  <input
+                    type="email"
+                    value={wForm.email}
+                    onChange={(e) => setWForm(p => ({ ...p, email: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]/30"
+                    placeholder="din@email.se"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Telefonnummer *</label>
+                  <input
+                    type="tel"
+                    value={wForm.phone}
+                    onChange={(e) => setWForm(p => ({ ...p, phone: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]/30"
+                    placeholder="070-123 45 67"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Beskriv din nivå</label>
+                  <textarea
+                    value={wForm.level_description}
+                    onChange={(e) => setWForm(p => ({ ...p, level_description: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]/30 resize-none"
+                    rows={3}
+                    placeholder="T.ex. jag är nybörjare, kan läsa lite arabiska men aldrig läst Koranen..."
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setWaitlistCourse(null)}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50"
+                  >
+                    Avbryt
+                  </button>
+                  <button
+                    onClick={submitWaitlist}
+                    disabled={wLoading}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                    style={{ backgroundColor: "#F59E0B" }}
+                  >
+                    {wLoading ? "Skickar..." : "Anmäl intresse"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <main className="flex-1">
         {/* Hero */}
         <section className="py-20" style={{ background: "linear-gradient(135deg, #1A1520 0%, #2E1A47 100%)" }}>
@@ -179,7 +315,7 @@ export default function Kurser() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
                 {courses.map((course, idx) => {
-                  const isFull = course.max_participants !== null && course.enrolled_count >= course.max_participants;
+                  const isFull    = course.max_participants !== null && course.enrolled_count >= course.max_participants;
                   const isPopular = idx === Math.floor(courses.length / 2);
                   return (
                     <div key={course.id}
@@ -190,6 +326,11 @@ export default function Kurser() {
                       {isPopular && (
                         <div className="text-center py-2 text-sm font-semibold text-white" style={{ backgroundColor: "#7B3FB0" }}>
                           Populärast
+                        </div>
+                      )}
+                      {isFull && (
+                        <div className="text-center py-1.5 text-xs font-semibold text-white" style={{ backgroundColor: "#F59E0B" }}>
+                          Fullbokad – Anmäl intresse
                         </div>
                       )}
                       <div className="p-8 bg-white">
@@ -215,13 +356,13 @@ export default function Kurser() {
 
                         <SpotsBar enrolled={course.enrolled_count} max={course.max_participants} />
 
-                        {!isFull && !enrolledIds.has(course.id) && !userId && (
-                          <p className="text-xs text-gray-400 text-center mb-3">
-                            <Link href="/logga-in" className="underline hover:text-[#7B3FB0]">Logga in</Link> för att ansöka
-                          </p>
-                        )}
-
-                        <ApplyButton course={course} enrolledIds={enrolledIds} onApply={handleApply} />
+                        <ApplyButton
+                          course={course}
+                          enrolledIds={enrolledIds}
+                          userId={userId}
+                          onApply={handleApply}
+                          onWaitlist={openWaitlist}
+                        />
                       </div>
                     </div>
                   );

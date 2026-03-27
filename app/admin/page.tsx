@@ -3,7 +3,18 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Profile, Course, Enrollment, Message } from "@/lib/supabase/types";
 
-type Tab = "overview" | "students" | "teachers" | "courses" | "lessons" | "messages" | "material";
+type Tab = "overview" | "students" | "teachers" | "courses" | "lessons" | "messages" | "material" | "waitlist";
+
+type WaitlistRow = {
+  id: string;
+  course_id: string;
+  name: string;
+  email: string;
+  phone: string;
+  level_description: string | null;
+  created_at: string;
+  course: { id: string; title: string } | null;
+};
 
 type EnrollmentRow = Enrollment & {
   student: Pick<Profile, "id" | "full_name" | "email"> | null;
@@ -103,6 +114,7 @@ export default function AdminPanel() {
   const [lessons, setLessons] = useState<{ id: string; title: string; scheduled_at: string | null; meeting_link: string | null; course_id?: string; course: { title: string } | null }[]>([]);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
+  const [waitlist, setWaitlist]   = useState<WaitlistRow[]>([]);
 
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [showMaterialModal, setShowMaterialModal] = useState(false);
@@ -125,13 +137,14 @@ export default function AdminPanel() {
   const [feedback, setFeedback] = useState("");
 
   const load = useCallback(async () => {
-    const [s, c, e, l, m, mat] = await Promise.all([
+    const [s, c, e, l, m, mat, wl] = await Promise.all([
       fetch("/api/admin/students").then((r) => r.json()),
       fetch("/api/admin/courses").then((r) => r.json()),
       fetch("/api/admin/enrollments").then((r) => r.json()),
       fetch("/api/admin/lessons").then((r) => r.json()),
       fetch("/api/admin/messages").then((r) => r.json()),
       fetch("/api/admin/materials").then((r) => r.json()),
+      fetch("/api/admin/waitlist").then((r) => r.json()),
     ]);
     if (!s.error) setStudents(s);
     if (!c.error) setCourses(c);
@@ -139,6 +152,7 @@ export default function AdminPanel() {
     if (!l.error) setLessons(l);
     if (!m.error) setMessages(m);
     if (!mat.error) setMaterials(mat);
+    if (!wl.error) setWaitlist(wl);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -301,7 +315,7 @@ export default function AdminPanel() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-8 flex-wrap">
-          {([["overview", "Översikt"], ["students", "Elever"], ["teachers", "Lärare"], ["courses", "Kurser"], ["lessons", "Lektioner"], ["messages", "Meddelanden"], ["material", "Material"]] as [Tab, string][]).map(([key, label]) => (
+          {([["overview", "Översikt"], ["students", "Elever"], ["teachers", "Lärare"], ["courses", "Kurser"], ["lessons", "Lektioner"], ["messages", "Meddelanden"], ["material", "Material"], ["waitlist", `Kö (${waitlist.length})`]] as [Tab, string][]).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === key ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>
               {label}
@@ -738,6 +752,68 @@ export default function AdminPanel() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* WAITLIST */}
+        {tab === "waitlist" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Intressekö ({waitlist.length})</h2>
+              <p className="text-sm text-gray-400">Personer som anmält intresse för fullbokade kurser.</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Datum</th>
+                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Kurs</th>
+                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Namn</th>
+                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">E-post / Telefon</th>
+                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Nivå</th>
+                      <th className="px-6 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {waitlist.length === 0 ? (
+                      <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400 text-sm">Ingen i kön ännu.</td></tr>
+                    ) : waitlist.map((w) => (
+                      <tr key={w.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
+                          {new Date(w.created_at).toLocaleDateString("sv-SE")}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: "#F5EEFF", color: "#7B3FB0" }}>
+                            {w.course?.title ?? "–"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 font-medium text-gray-900">{w.name}</td>
+                        <td className="px-6 py-4">
+                          <div className="text-gray-600">{w.email}</div>
+                          <div className="text-gray-400 text-xs">{w.phone}</div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-500 text-xs max-w-xs">
+                          {w.level_description ?? <span className="italic text-gray-300">Ej angivet</span>}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            onClick={async () => {
+                              if (!confirm(`Ta bort ${w.name} från kön?`)) return;
+                              await fetch("/api/admin/waitlist", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: w.id }) });
+                              setWaitlist((prev) => prev.filter((x) => x.id !== w.id));
+                            }}
+                            className="text-xs text-gray-400 hover:text-red-500"
+                          >
+                            Ta bort
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
       </div>
