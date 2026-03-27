@@ -1,7 +1,11 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.RESEND_FROM ?? "Korancenter <noreply@korancenter.se>";
+
+function getResend() {
+  if (!process.env.RESEND_API_KEY) return null;
+  return new Resend(process.env.RESEND_API_KEY);
+}
 
 export async function sendNewApplicationEmail({
   toEmail,
@@ -18,7 +22,8 @@ export async function sendNewApplicationEmail({
   courseName: string;
   applicationId: string;
 }) {
-  if (!process.env.RESEND_API_KEY) return; // Skip if not configured
+  const resend = getResend();
+  if (!resend) return;
 
   await resend.emails.send({
     from: FROM,
@@ -55,7 +60,8 @@ export async function sendApplicationStatusEmail({
   redirectCourseName?: string;
   notes?: string;
 }) {
-  if (!process.env.RESEND_API_KEY) return;
+  const resend = getResend();
+  if (!resend) return;
 
   const subjects: Record<string, string> = {
     approved: `Grattis! Din ansökan till ${courseName} har godkänts`,
