@@ -25,6 +25,13 @@ type WaitlistForm = {
   level_description: string;
 };
 
+type ApplicationForm = {
+  name: string;
+  email: string;
+  phone: string;
+  experience: string;
+};
+
 const LEVEL_LABELS: Record<string, string> = {
   beginner: "Nybörjare",
   intermediate: "Mellannivå",
@@ -62,79 +69,59 @@ function SpotsBar({ enrolled, max }: { enrolled: number; max: number | null }) {
   );
 }
 
-function ApplyButton({ course, enrolledIds, userId, onApply, onWaitlist }: {
+function ApplyButton({ course, enrolledIds, appliedIds, onApply, onWaitlist }: {
   course: CourseData;
   enrolledIds: Set<string>;
-  userId: string | null;
-  onApply: (id: string) => Promise<void>;
+  appliedIds: Set<string>;
+  onApply: (course: CourseData) => void;
   onWaitlist: (course: CourseData) => void;
 }) {
-  const [loading, setLoading] = useState(false);
-  const [done, setDone]       = useState(false);
-
   const isFull     = course.max_participants !== null && course.enrolled_count >= course.max_participants;
   const isEnrolled = enrolledIds.has(course.id);
+  const hasApplied = appliedIds.has(course.id);
 
-  if (isEnrolled || done) {
-    return (
-      <div className="w-full text-center font-semibold py-3 rounded-xl bg-green-50 text-green-600 text-sm">
-        ✓ Anmälan mottagen
-      </div>
-    );
+  if (isEnrolled) {
+    return <div className="w-full text-center font-semibold py-3 rounded-xl bg-green-50 text-green-600 text-sm">✓ Godkänd & anmäld</div>;
   }
-
+  if (hasApplied) {
+    return <div className="w-full text-center font-semibold py-3 rounded-xl bg-purple-50 text-sm" style={{ color: "#7B3FB0" }}>✓ Ansökan skickad – väntar på svar</div>;
+  }
   if (isFull) {
     return (
-      <button
-        onClick={() => onWaitlist(course)}
+      <button onClick={() => onWaitlist(course)}
         className="block w-full text-center font-semibold py-3 rounded-xl border-2 transition-all hover:bg-amber-50"
-        style={{ borderColor: "#F59E0B", color: "#B45309" }}
-      >
+        style={{ borderColor: "#F59E0B", color: "#B45309" }}>
         Lägg mig i kö
       </button>
     );
   }
-
-  if (!userId) {
-    return (
-      <Link
-        href="/logga-in?next=/kurser"
-        className="block w-full text-center font-semibold py-3 rounded-xl transition-all hover:opacity-90"
-        style={{ backgroundColor: "#7B3FB0", color: "white" }}
-      >
-        Ansök nu
-      </Link>
-    );
-  }
-
   return (
-    <button
-      onClick={async () => {
-        setLoading(true);
-        await onApply(course.id);
-        setDone(true);
-        setLoading(false);
-      }}
-      disabled={loading}
-      className="block w-full text-center font-semibold py-3 rounded-xl transition-all active:scale-95 hover:opacity-90 disabled:opacity-60"
-      style={{ backgroundColor: "#7B3FB0", color: "white" }}
-    >
-      {loading ? "Skickar..." : "Ansök nu"}
+    <button onClick={() => onApply(course)}
+      className="block w-full text-center font-semibold py-3 rounded-xl transition-all active:scale-95 hover:opacity-90"
+      style={{ backgroundColor: "#7B3FB0", color: "white" }}>
+      Ansök nu
     </button>
   );
 }
 
-const emptyWaitlist: WaitlistForm = { name: "", email: "", phone: "", level_description: "" };
+const emptyWaitlist: WaitlistForm    = { name: "", email: "", phone: "", level_description: "" };
+const emptyApplication: ApplicationForm = { name: "", email: "", phone: "", experience: "" };
 
 export default function Kurser() {
   const [courses, setCourses]         = useState<CourseData[]>([]);
   const [enrolledIds, setEnrolledIds] = useState<Set<string>>(new Set());
-  const [userId, setUserId]           = useState<string | null>(null);
+  const [appliedIds, setAppliedIds]   = useState<Set<string>>(new Set());
   const [loading, setLoading]         = useState(true);
   const [openFaq, setOpenFaq]         = useState<number | null>(null);
   const [toast, setToast]             = useState("");
 
-  // Waitlist modal state
+  // Application modal
+  const [applyCourse, setApplyCourse]   = useState<CourseData | null>(null);
+  const [appForm, setAppForm]           = useState<ApplicationForm>(emptyApplication);
+  const [appLoading, setAppLoading]     = useState(false);
+  const [appDone, setAppDone]           = useState(false);
+
+  // Waitlist modal
   const [waitlistCourse, setWaitlistCourse] = useState<CourseData | null>(null);
   const [wForm, setWForm]                   = useState<WaitlistForm>(emptyWaitlist);
   const [wLoading, setWLoading]             = useState(false);
@@ -150,7 +137,6 @@ export default function Kurser() {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        setUserId(user.id);
         const { data: enr } = await supabase
           .from("enrollments").select("course_id")
           .eq("student_id", user.id).neq("payment_status", "cancelled");
@@ -162,16 +148,29 @@ export default function Kurser() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 4000); };
 
-  const handleApply = async (courseId: string) => {
-    const res = await fetch("/api/portal/enroll", {
+  const openApply = (course: CourseData) => {
+    setApplyCourse(course);
+    setAppForm(emptyApplication);
+    setAppDone(false);
+  };
+
+  const submitApplication = async () => {
+    if (!applyCourse) return;
+    if (!appForm.name || !appForm.email || !appForm.phone) {
+      showToast("Fyll i namn, e-post och telefon.");
+      return;
+    }
+    setAppLoading(true);
+    const res = await fetch("/api/applications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ course_id: courseId }),
+      body: JSON.stringify({ course_id: applyCourse.id, ...appForm }),
     });
     const data = await res.json();
+    setAppLoading(false);
     if (res.ok) {
-      setEnrolledIds((prev) => new Set([...prev, courseId]));
-      showToast("Din ansökan är mottagen! Vi kontaktar dig snart.");
+      setAppDone(true);
+      setAppliedIds((prev) => new Set([...prev, applyCourse.id]));
     } else {
       showToast(data.error ?? "Något gick fel.");
     }
@@ -210,6 +209,71 @@ export default function Kurser() {
       {toast && (
         <div className="fixed top-4 right-4 z-50 bg-[#7B3FB0] text-white text-sm font-medium px-5 py-3 rounded-xl shadow-lg max-w-sm">
           {toast}
+        </div>
+      )}
+
+      {/* Application Modal */}
+      {applyCourse && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">Ansök – {applyCourse.title}</h2>
+              <p className="text-sm text-gray-400 mt-1">Fyll i dina uppgifter så granskar läraren din ansökan.</p>
+            </div>
+
+            {appDone ? (
+              <div className="px-6 py-10 text-center">
+                <div className="text-4xl mb-3">🎉</div>
+                <p className="font-semibold text-gray-900 mb-1">Ansökan skickad!</p>
+                <p className="text-sm text-gray-400 mb-2">Du får svar via e-post när läraren granskat din ansökan.</p>
+                <p className="text-xs text-gray-400 mb-6">Vid godkännande faktureras <strong>3 månader i förväg</strong> ({((applyCourse.price_sek * 3) / 100).toLocaleString("sv-SE")} kr).</p>
+                <button onClick={() => setApplyCourse(null)} className="text-sm text-gray-400 hover:text-gray-600 underline">Stäng</button>
+              </div>
+            ) : (
+              <div className="px-6 py-5 space-y-4">
+                {/* Payment info banner */}
+                <div className="rounded-xl p-4 text-sm" style={{ backgroundColor: "#F5EEFF" }}>
+                  <p className="font-semibold mb-1" style={{ color: "#7B3FB0" }}>Betalningsinformation</p>
+                  <p className="text-gray-600">Vid godkänd ansökan faktureras <strong>3 månader i förväg</strong> ({((applyCourse.price_sek * 3) / 100).toLocaleString("sv-SE")} kr = {applyCourse.sessions_per_week * 12} lektioner).</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Namn *</label>
+                  <input value={appForm.name} onChange={(e) => setAppForm(p => ({ ...p, name: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]/30"
+                    placeholder="Ditt fullständiga namn" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">E-post *</label>
+                  <input type="email" value={appForm.email} onChange={(e) => setAppForm(p => ({ ...p, email: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]/30"
+                    placeholder="din@email.se" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Telefonnummer *</label>
+                  <input type="tel" value={appForm.phone} onChange={(e) => setAppForm(p => ({ ...p, phone: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]/30"
+                    placeholder="070-123 45 67" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Beskriv din erfarenhet av Koranen</label>
+                  <textarea value={appForm.experience} onChange={(e) => setAppForm(p => ({ ...p, experience: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]/30 resize-none"
+                    rows={3} placeholder="T.ex. Jag är nybörjare, kan läsa lite arabiska men aldrig läst Koranen..." />
+                </div>
+                <div className="flex gap-3 pt-1">
+                  <button onClick={() => setApplyCourse(null)}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50">
+                    Avbryt
+                  </button>
+                  <button onClick={submitApplication} disabled={appLoading}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60 hover:opacity-90"
+                    style={{ backgroundColor: "#7B3FB0" }}>
+                    {appLoading ? "Skickar..." : "Skicka ansökan"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -359,8 +423,8 @@ export default function Kurser() {
                         <ApplyButton
                           course={course}
                           enrolledIds={enrolledIds}
-                          userId={userId}
-                          onApply={handleApply}
+                          appliedIds={appliedIds}
+                          onApply={openApply}
                           onWaitlist={openWaitlist}
                         />
                       </div>

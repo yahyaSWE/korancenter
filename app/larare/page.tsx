@@ -22,17 +22,20 @@ type MessageRow = {
 };
 
 export default function LarareDashboard() {
-  const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
-  const [messages, setMessages] = useState<MessageRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [enrollments, setEnrollments]   = useState<StudentEnrollment[]>([]);
+  const [messages, setMessages]         = useState<MessageRow[]>([]);
+  const [pendingApps, setPendingApps]   = useState(0);
+  const [loading, setLoading]           = useState(true);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/teacher/students").then((r) => r.json()),
       fetch("/api/teacher/messages").then((r) => r.json()),
-    ]).then(([e, m]) => {
+      fetch("/api/teacher/applications").then((r) => r.json()),
+    ]).then(([e, m, apps]) => {
       if (!e.error) setEnrollments(e);
       if (!m.error) setMessages(m);
+      if (!apps.error) setPendingApps((apps as {status:string}[]).filter((a) => a.status === "pending").length);
       setLoading(false);
     });
   }, []);
@@ -59,7 +62,7 @@ export default function LarareDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <p className="text-3xl font-bold text-gray-900">{uniqueStudents.length}</p>
           <p className="text-sm text-gray-500 mt-0.5">Elever totalt</p>
@@ -68,10 +71,14 @@ export default function LarareDashboard() {
           <p className="text-3xl font-bold" style={{ color: unreadCount > 0 ? "#7B3FB0" : "#111827" }}>{unreadCount}</p>
           <p className="text-sm text-gray-500 mt-0.5">Olästa meddelanden</p>
         </div>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <p className="text-3xl font-bold" style={{ color: pendingApps > 0 ? "#F59E0B" : "#111827" }}>{pendingApps}</p>
+          <p className="text-sm text-gray-500 mt-0.5">Väntande ansökningar</p>
+        </div>
       </div>
 
       {/* Quick links */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Link href="/larare/elever" className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: "#F5EEFF" }}>
             <svg className="w-6 h-6" style={{ color: "#7B3FB0" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -92,6 +99,17 @@ export default function LarareDashboard() {
           <div>
             <p className="font-semibold text-gray-900">Meddelanden</p>
             <p className="text-sm text-gray-500">{unreadCount > 0 ? `${unreadCount} olästa` : "Inga olästa"}</p>
+          </div>
+        </Link>
+        <Link href="/larare/ansokningar" className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: pendingApps > 0 ? "#FFFBEB" : "#F5EEFF" }}>
+            <svg className="w-6 h-6" style={{ color: pendingApps > 0 ? "#F59E0B" : "#7B3FB0" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-900">Ansökningar</p>
+            <p className="text-sm text-gray-500">{pendingApps > 0 ? `${pendingApps} väntar på svar` : "Inga väntande"}</p>
           </div>
         </Link>
       </div>
