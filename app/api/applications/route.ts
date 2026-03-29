@@ -3,9 +3,9 @@ import { sendNewApplicationEmail } from "@/lib/email";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
-  const { course_id, name, email, phone, experience } = await req.json();
+  const { course_id, name, email, phone, address, postal_code, city, experience } = await req.json();
 
-  if (!course_id || !name || !email || !phone) {
+  if (!course_id || !name || !email || !phone || !address || !postal_code || !city) {
     return NextResponse.json({ error: "Obligatoriska fält saknas" }, { status: 400 });
   }
 
@@ -42,6 +42,9 @@ export async function POST(req: NextRequest) {
       name: name.trim(),
       email: email.trim().toLowerCase(),
       phone: phone.trim(),
+      address: address.trim(),
+      postal_code: postal_code.trim(),
+      city: city.trim(),
       experience: experience?.trim() ?? null,
     })
     .select()

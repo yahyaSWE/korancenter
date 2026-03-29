@@ -29,6 +29,9 @@ type ApplicationForm = {
   name: string;
   email: string;
   phone: string;
+  address: string;
+  postal_code: string;
+  city: string;
   experience: string;
 };
 
@@ -105,7 +108,7 @@ function ApplyButton({ course, enrolledIds, appliedIds, onApply, onWaitlist }: {
 }
 
 const emptyWaitlist: WaitlistForm    = { name: "", email: "", phone: "", level_description: "" };
-const emptyApplication: ApplicationForm = { name: "", email: "", phone: "", experience: "" };
+const emptyApplication: ApplicationForm = { name: "", email: "", phone: "", address: "", postal_code: "", city: "", experience: "" };
 
 export default function Kurser() {
   const [courses, setCourses]         = useState<CourseData[]>([]);
@@ -156,8 +159,8 @@ export default function Kurser() {
 
   const submitApplication = async () => {
     if (!applyCourse) return;
-    if (!appForm.name || !appForm.email || !appForm.phone) {
-      showToast("Fyll i namn, e-post och telefon.");
+    if (!appForm.name || !appForm.email || !appForm.phone || !appForm.address || !appForm.postal_code || !appForm.city) {
+      showToast("Fyll i alla obligatoriska fält (*).");
       return;
     }
     setAppLoading(true);
@@ -253,6 +256,26 @@ export default function Kurser() {
                   <input type="tel" value={appForm.phone} onChange={(e) => setAppForm(p => ({ ...p, phone: e.target.value }))}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]/30"
                     placeholder="070-123 45 67" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Gatuadress *</label>
+                  <input value={appForm.address} onChange={(e) => setAppForm(p => ({ ...p, address: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]/30"
+                    placeholder="Storgatan 1" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Postnummer *</label>
+                    <input value={appForm.postal_code} onChange={(e) => setAppForm(p => ({ ...p, postal_code: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]/30"
+                      placeholder="123 45" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Ort *</label>
+                    <input value={appForm.city} onChange={(e) => setAppForm(p => ({ ...p, city: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]/30"
+                      placeholder="Stockholm" />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Beskriv din erfarenhet av Koranen</label>

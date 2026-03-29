@@ -8,6 +8,9 @@ type Application = {
   name: string;
   email: string;
   phone: string;
+  address: string | null;
+  postal_code: string | null;
+  city: string | null;
   experience: string | null;
   status: string;
   admin_notes: string | null;
@@ -146,6 +149,7 @@ export default function LarareAnsokningar() {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div><span className="text-gray-400 text-xs font-medium uppercase tracking-wide">E-post</span><p className="text-gray-800 mt-0.5">{app.email}</p></div>
                   <div><span className="text-gray-400 text-xs font-medium uppercase tracking-wide">Telefon</span><p className="text-gray-800 mt-0.5">{app.phone}</p></div>
+                  {app.address && <div className="col-span-2"><span className="text-gray-400 text-xs font-medium uppercase tracking-wide">Adress</span><p className="text-gray-800 mt-0.5">{app.address}, {app.postal_code} {app.city}</p></div>}
                 </div>
                 {app.experience && (
                   <div>

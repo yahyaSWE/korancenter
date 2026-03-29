@@ -11,6 +11,9 @@ type ApplicationRow = {
   name: string;
   email: string;
   phone: string;
+  address: string | null;
+  postal_code: string | null;
+  city: string | null;
   experience: string | null;
   status: string;
   admin_notes: string | null;
@@ -883,6 +886,7 @@ export default function AdminPanel() {
                         <td className="px-6 py-4">
                           <p className="font-medium text-gray-900">{app.name}</p>
                           <p className="text-xs text-gray-400">{app.email} · {app.phone}</p>
+                          {app.address && <p className="text-xs text-gray-400">{app.address}, {app.postal_code} {app.city}</p>}
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: "#F5EEFF", color: "#7B3FB0" }}>
