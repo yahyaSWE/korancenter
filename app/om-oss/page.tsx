@@ -3,32 +3,18 @@ import Footer from "@/components/Footer";
 
 const teachers = [
   {
-    name: "Fatima Al-Rashid",
-    title: "Koranläsning & Tajwid",
-    bio: "Fatima har studerat Koranvetenskap i tio år och är certifierad lärare i tajwid med ijaza. Hon undervisar med stor tålamod och pedagogisk kompetens.",
-    specialties: ["Tajwid", "Koranläsning", "Nybörjare"],
-    initials: "FA",
+    name: "Nabila",
+    title: "Koranläsning, Hifdh & Tajwid",
+    bio: "Nabila är en erfaren koranlärare som har memorerat hela Koranen och har sanad, en autentisk kunskapskedja som går tillbaka till Profeten Muhammad ﷺ. Hon har ijaza i tilawa, hifdh, tajwid och Qaida Noorania och har undervisat elever i olika åldrar och nivåer i över 8 år. Nabila brinner för att hjälpa sina elever utveckla korrekt recitation och en stark relation till Koranen.",
+    specialties: ["Tilawa", "Hifdh", "Tajwid", "Qaida Noorania", "Sanad & Ijaza"],
+    initials: "NA",
   },
   {
-    name: "Maryam Hassan",
-    title: "Memorering (Hifz)",
-    bio: "Maryam är hafiza och har memorerat hela Koranen. Hon har lång erfarenhet av att vägleda elever i sin memoreringsresa med ett strukturerat och motiverande upplägg.",
-    specialties: ["Hifz", "Memorering", "Avancerad"],
-    initials: "MH",
-  },
-  {
-    name: "Aisha Karimi",
-    title: "Grundläggande arabiska & Koranläsning",
-    bio: "Aisha undervisar nybörjare och barn i att känna igen arabiska bokstäver och läsa Koranen från grunden. Hennes tydliga pedagogik gör inlärningen enkel och rolig.",
-    specialties: ["Arabiska", "Nybörjare", "Barn & unga"],
-    initials: "AK",
-  },
-  {
-    name: "Zainab Mahmoud",
-    title: "Avancerad Koranläsning",
-    bio: "Zainab har studerat vid islamiska universitet och är specialiserad på avancerad recitation och fördjupad tajwid. Hon guidar elever mot en mer djupgående förståelse av Koranen.",
-    specialties: ["Avancerad tajwid", "Recitation", "Fördjupning"],
-    initials: "ZM",
+    name: "Memona",
+    title: "Koranläsning & Tilawah",
+    bio: "Memona är en erfaren koranlärare med lång erfarenhet av att undervisa elever i olika nivåer. Hon har sanad i tilawah och har även studerat i Medina, där hon fördjupat sina kunskaper inom koranstudier. Med sitt engagemang hjälper hon elever att utveckla korrekt recitation och en starkare förståelse för Koranen.",
+    specialties: ["Tilawah", "Sanad", "Koranstudier", "Medina-utbildad"],
+    initials: "ME",
   },
 ];
 
