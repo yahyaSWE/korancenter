@@ -43,9 +43,11 @@ const LEVEL_LABELS: Record<string, string> = {
 
 const faqs = [
   { q: "Hur sker undervisningen?", a: "All undervisning sker online via videosamtal (Google Meet eller Zoom). Du behöver bara en dator, surfplatta eller telefon med kamera och mikrofon." },
-  { q: "Vad händer om jag missar en lektion?", a: "Du kan avboka eller boka om lektioner med minst 24 timmars varsel utan extra kostnad. Vi försöker alltid hitta en tid som passar." },
+  { q: "Vad händer om jag missar en lektion?", a: "Om man missar en lektion kan man ta del av det man har missat via elevsidan." },
   { q: "Är kurserna för alla åldrar?", a: "Ja, vi tar emot elever från 8 år och uppåt. Barn och unga undervisas med anpassad pedagogik." },
-  { q: "Hur betalar jag?", a: "Vi använder Klarna som betaltjänst. Du kan betala med kort (Visa/Mastercard) eller Swish. Betalning sker månadsvis." },
+  { q: "Hur betalar jag?", a: "Betalning sker för 3 månader i taget i förväg. Vi fakturerar via Klarna och du kan betala med kort (Visa/Mastercard) eller Swish." },
+  { q: "Varför betalar man för 3 månader åt gången?", a: "Vi arbetar med 3-månadersperioder för att säkerställa engagemang och kontinuitet i studierna. Det ger också bättre förutsättningar för att nå resultat och upprätthålla en seriös och strukturerad nivå i undervisningen." },
+  { q: "Vad händer om man vill avsluta sina studier innan 3 månader?", a: "Anmälan gäller för hela 3-månadersperioden och avgiften återbetalas inte vid avbrutna studier." },
 ];
 
 function SpotsBar({ enrolled, max }: { enrolled: number; max: number | null }) {
@@ -456,7 +458,7 @@ export default function Kurser() {
               </div>
             )}
             <p className="text-center text-sm text-gray-400 mt-8">
-              Betalning sker säkert via Klarna (Visa/Mastercard & Swish). Månadsvis betalning.
+              Betalning sker säkert via Klarna (Visa/Mastercard & Swish). Fakturering per 3-månadersperiod i förväg.
             </p>
           </div>
         </section>
