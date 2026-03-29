@@ -39,7 +39,7 @@ export default function Kontakt() {
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h1 className="text-4xl sm:text-5xl font-bold text-white mb-6">Kontakt</h1>
             <p className="text-white/70 text-lg">
-              Har du frågor eller vill boka en gratis provlektion? Hör av dig – vi svarar inom ett dygn.
+              Har du frågor? Hör av dig – vi svarar inom ett dygn.
             </p>
           </div>
         </section>
@@ -94,17 +94,6 @@ export default function Kontakt() {
                   </div>
                 </div>
 
-                {/* Gratis provlektion */}
-                <div
-                  className="rounded-2xl p-6 text-white"
-                  style={{ background: "linear-gradient(135deg, #5C2D8A 0%, #7B3FB0 100%)" }}
-                >
-                  <h3 className="font-semibold mb-2">Gratis provlektion</h3>
-                  <p className="text-white/80 text-sm mb-4">
-                    Vill du prova innan du bestämmer dig? Fyll i formuläret och välj "Boka provlektion" som ämne.
-                  </p>
-                  <p className="text-xs text-white/60">30 minuter – helt utan kostnad</p>
-                </div>
               </div>
 
               {/* Kontaktformulär */}
@@ -159,7 +148,6 @@ export default function Kontakt() {
                           className="w-full px-4 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:border-transparent bg-white"
                         >
                           <option value="">Välj ett ämne</option>
-                          <option value="Boka provlektion">Boka gratis provlektion</option>
                           <option value="Fråga om kurs">Fråga om kurs</option>
                           <option value="Betalningsfråga">Betalningsfråga</option>
                           <option value="Teknisk support">Teknisk support</option>

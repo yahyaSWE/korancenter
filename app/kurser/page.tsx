@@ -46,7 +46,6 @@ const faqs = [
   { q: "Vad händer om jag missar en lektion?", a: "Du kan avboka eller boka om lektioner med minst 24 timmars varsel utan extra kostnad. Vi försöker alltid hitta en tid som passar." },
   { q: "Är kurserna för alla åldrar?", a: "Ja, vi tar emot elever från 8 år och uppåt. Barn och unga undervisas med anpassad pedagogik." },
   { q: "Hur betalar jag?", a: "Vi använder Klarna som betaltjänst. Du kan betala med kort (Visa/Mastercard) eller Swish. Betalning sker månadsvis." },
-  { q: "Kan jag prova innan jag anmäler mig?", a: "Ja! Vi erbjuder en gratis provlektion på 30 minuter. Kontakta oss via kontaktformuläret så bokar vi in en tid." },
 ];
 
 function SpotsBar({ enrolled, max }: { enrolled: number; max: number | null }) {
@@ -462,18 +461,6 @@ export default function Kurser() {
           </div>
         </section>
 
-        {/* Gratis provlektion */}
-        <section className="py-16 bg-white">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="rounded-3xl p-10 text-white text-center" style={{ background: "linear-gradient(135deg, #5C2D8A 0%, #7B3FB0 100%)" }}>
-              <h2 className="text-2xl font-bold mb-3">Prova gratis – utan förpliktelse</h2>
-              <p className="text-white/75 mb-6">Boka en kostnadsfri provlektion på 30 minuter och känn om vår undervisning passar dig.</p>
-              <Link href="/kontakt" className="inline-flex items-center gap-2 bg-white font-semibold px-8 py-3 rounded-xl hover:bg-gray-50 transition-all" style={{ color: "#7B3FB0" }}>
-                Boka provlektion
-              </Link>
-            </div>
-          </div>
-        </section>
 
         {/* FAQ */}
         <section className="py-20 bg-gray-50">
