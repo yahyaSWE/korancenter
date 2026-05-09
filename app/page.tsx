@@ -1,8 +1,33 @@
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { createClient } from "@/lib/supabase/server";
 
-export default function Home() {
+async function getStats() {
+  try {
+    const supabase = await createClient();
+    const [{ count: students }, { count: teachers }, { count: courses }] = await Promise.all([
+      supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "student"),
+      supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "teacher"),
+      supabase.from("courses").select("*", { count: "exact", head: true }).eq("is_active", true),
+    ]);
+    return {
+      students: students ?? 0,
+      teachers: teachers ?? 0,
+      courses: courses ?? 0,
+    };
+  } catch {
+    return { students: 0, teachers: 0, courses: 0 };
+  }
+}
+
+export default async function Home() {
+  const stats = await getStats();
+
+  const studentLabel = stats.students >= 100 ? "100+" : stats.students > 0 ? String(stats.students) : "100+";
+  const teacherLabel = stats.teachers > 0 ? String(stats.teachers) : "4";
+  const courseLabel = stats.courses > 0 ? String(stats.courses) : "3";
+
   return (
     <>
       <Navbar />
@@ -12,20 +37,6 @@ export default function Home() {
           className="relative min-h-[90vh] flex items-center overflow-hidden"
           style={{ background: "linear-gradient(135deg, #1A1520 0%, #2E1A47 60%, #7B3FB0 100%)" }}
         >
-          {/* Islamiskt mönster i bakgrunden */}
-          <div className="absolute inset-0 opacity-5">
-            <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <pattern id="islamic" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
-                  <path d="M40 0 L80 40 L40 80 L0 40 Z" fill="none" stroke="white" strokeWidth="1" />
-                  <circle cx="40" cy="40" r="15" fill="none" stroke="white" strokeWidth="0.5" />
-                  <circle cx="40" cy="40" r="8" fill="none" stroke="white" strokeWidth="0.5" />
-                </pattern>
-              </defs>
-              <rect width="100%" height="100%" fill="url(#islamic)" />
-            </svg>
-          </div>
-
           <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-1.5 mb-6">
@@ -74,9 +85,9 @@ export default function Home() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
               {[
-                { value: "100+", label: "Nöjda elever" },
-                { value: "4", label: "Erfarna lärare" },
-                { value: "3", label: "Kursnivåer" },
+                { value: studentLabel, label: "Nöjda elever" },
+                { value: teacherLabel, label: "Erfarna lärare" },
+                { value: courseLabel, label: "Aktiva kurser" },
                 { value: "5★", label: "Betyg" },
               ].map((stat) => (
                 <div key={stat.label}>

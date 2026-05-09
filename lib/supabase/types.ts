@@ -19,10 +19,20 @@ export interface Course {
   image_url: string | null
   teacher_id: string | null
   is_active: boolean
+  is_subscription: boolean
+  stripe_price_id: string | null
   max_participants: number | null
   created_at: string
   teacher?: Profile
 }
+
+export type SubscriptionStatus =
+  | "active"
+  | "cancel_at_period_end"
+  | "canceled"
+  | "past_due"
+  | "awaiting_payment"
+  | null
 
 export interface Enrollment {
   id: string
@@ -30,6 +40,10 @@ export interface Enrollment {
   course_id: string
   enrolled_at: string
   payment_status: "pending" | "paid" | "refunded" | "cancelled"
+  stripe_subscription_id: string | null
+  stripe_customer_id: string | null
+  current_period_end: string | null
+  subscription_status: SubscriptionStatus
   course?: Course
   student?: Profile
 }

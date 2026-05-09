@@ -15,7 +15,7 @@ export default function AterstallLosenord() {
 
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/portal/nytt-losenord`,
+      redirectTo: `${window.location.origin}/api/auth/callback?next=/portal/nytt-losenord`,
     });
 
     setStatus(error ? "error" : "success");
@@ -31,7 +31,7 @@ export default function AterstallLosenord() {
 
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Återställ lösenord</h1>
         <p className="text-gray-500 text-sm mb-8">
-          Ange din e-postadress so registrerades vid anmälan. Vi skickar en länk för att återställa ditt lösenord.
+          Ange din e-postadress som registrerades vid anmälan. Vi skickar en länk för att återställa ditt lösenord.
         </p>
 
         {status === "success" ? (

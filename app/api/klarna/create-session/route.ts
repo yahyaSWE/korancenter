@@ -11,13 +11,32 @@ const KLARNA_AUTH = Buffer.from(
 
 export async function POST(req: NextRequest) {
   try {
-    const { courseId, courseTitle, priceOre, studentEmail, studentName } = await req.json();
+    const body = await req.json();
+    const { courseId, courseTitle, priceOre, studentEmail, studentName } = body;
 
-    if (!courseId || !priceOre) {
-      return NextResponse.json({ error: "Saknade parametrar" }, { status: 400 });
+    // Validera obligatoriska fält
+    if (!courseId || typeof courseId !== "string" || courseId.trim() === "") {
+      return NextResponse.json({ error: "Ogiltigt kurs-ID" }, { status: 400 });
+    }
+    if (!priceOre || typeof priceOre !== "number" || !Number.isInteger(priceOre) || priceOre <= 0) {
+      return NextResponse.json({ error: "Ogiltigt pris" }, { status: 400 });
+    }
+    if (priceOre > 100_000_00) {
+      return NextResponse.json({ error: "Priset överstiger maxgränsen" }, { status: 400 });
+    }
+    if (studentEmail && (typeof studentEmail !== "string" || !studentEmail.includes("@"))) {
+      return NextResponse.json({ error: "Ogiltig e-postadress" }, { status: 400 });
+    }
+    if (!process.env.KLARNA_USERNAME || !process.env.KLARNA_PASSWORD) {
+      console.error("Klarna-uppgifter saknas i miljövariabler");
+      return NextResponse.json({ error: "Betalning ej konfigurerad" }, { status: 503 });
+    }
+    if (!process.env.NEXT_PUBLIC_SITE_URL) {
+      console.error("NEXT_PUBLIC_SITE_URL saknas i miljövariabler");
+      return NextResponse.json({ error: "Serverfel: webbplatsens URL är ej konfigurerad" }, { status: 503 });
     }
 
-    const body = {
+    const klarnaBody = {
       purchase_country: "SE",
       purchase_currency: "SEK",
       locale: "sv-SE",
@@ -26,8 +45,8 @@ export async function POST(req: NextRequest) {
       order_lines: [
         {
           type: "digital",
-          reference: courseId,
-          name: courseTitle,
+          reference: courseId.slice(0, 64),
+          name: (courseTitle ?? "Korankurs").slice(0, 255),
           quantity: 1,
           unit_price: priceOre,
           tax_rate: 0,
@@ -40,9 +59,9 @@ export async function POST(req: NextRequest) {
         notification: `${process.env.NEXT_PUBLIC_SITE_URL}/api/klarna/webhook`,
       },
       billing_address: {
-        email: studentEmail,
-        given_name: studentName?.split(" ")[0] ?? "",
-        family_name: studentName?.split(" ").slice(1).join(" ") ?? "",
+        email: studentEmail ?? "",
+        given_name: (studentName ?? "").split(" ")[0] ?? "",
+        family_name: (studentName ?? "").split(" ").slice(1).join(" ") ?? "",
       },
     };
 
@@ -52,13 +71,13 @@ export async function POST(req: NextRequest) {
         "Content-Type": "application/json",
         Authorization: `Basic ${KLARNA_AUTH}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(klarnaBody),
     });
 
     if (!res.ok) {
       const err = await res.text();
       console.error("Klarna error:", err);
-      return NextResponse.json({ error: "Klarna-fel" }, { status: 500 });
+      return NextResponse.json({ error: "Betalningsfel – försök igen" }, { status: 502 });
     }
 
     const session = await res.json();

@@ -1,5 +1,6 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { createClient } from "@/lib/supabase/server";
 
 const teachers = [
   {
@@ -18,7 +19,27 @@ const teachers = [
   },
 ];
 
-export default function OmOss() {
+async function getStats() {
+  try {
+    const supabase = await createClient();
+    const [{ count: students }, { count: teacherCount }, { count: courses }] = await Promise.all([
+      supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "student"),
+      supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "teacher"),
+      supabase.from("courses").select("*", { count: "exact", head: true }).eq("is_active", true),
+    ]);
+    return { students: students ?? 0, teachers: teacherCount ?? 0, courses: courses ?? 0 };
+  } catch {
+    return { students: 0, teachers: 0, courses: 0 };
+  }
+}
+
+export default async function OmOss() {
+  const stats = await getStats();
+
+  const studentLabel = stats.students >= 100 ? "100+" : stats.students > 0 ? `${stats.students}` : "100+";
+  const teacherLabel = stats.teachers > 0 ? `${stats.teachers} st` : "4 st";
+  const courseLabel = stats.courses > 0 ? `${stats.courses}` : "3 nivåer";
+
   return (
     <>
       <Navbar />
@@ -60,9 +81,9 @@ export default function OmOss() {
                 <div className="mt-8 grid grid-cols-2 gap-4">
                   {[
                     { label: "Grundat", value: "2020" },
-                    { label: "Elever totalt", value: "100+" },
-                    { label: "Lärare", value: "4 st" },
-                    { label: "Kurser", value: "3 nivåer" },
+                    { label: "Elever totalt", value: studentLabel },
+                    { label: "Lärare", value: teacherLabel },
+                    { label: "Aktiva kurser", value: courseLabel },
                   ].map((item) => (
                     <div key={item.label} className="bg-gray-50 rounded-xl p-4">
                       <p className="text-2xl font-bold" style={{ color: "#7B3FB0" }}>{item.value}</p>

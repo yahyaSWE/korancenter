@@ -15,8 +15,8 @@ export default function Footer() {
               <Image
                 src="/images/logo.png"
                 alt="Korancenter logga"
-                width={44}
-                height={44}
+                width={52}
+                height={52}
                 className="object-contain brightness-0 invert"
               />
               <div>

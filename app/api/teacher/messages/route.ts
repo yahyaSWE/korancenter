@@ -12,8 +12,8 @@ export async function GET() {
     .from("messages")
     .select("*, sender:profiles!sender_id(id, full_name, email), recipient:profiles!recipient_id(id, full_name, email)")
     .or(`sender_id.eq.${user!.id},recipient_id.eq.${user!.id}`)
-    .order("created_at", { ascending: false })
-    .limit(200);
+    .order("created_at", { ascending: true })
+    .limit(500);
 
   if (err) return NextResponse.json({ error: err.message }, { status: 500 });
   return NextResponse.json(data ?? []);
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   const { data, error: err } = await adminClient
     .from("messages")
     .insert({ sender_id: user!.id, recipient_id, subject: subject ?? null, content })
-    .select()
+    .select("*, sender:profiles!sender_id(id, full_name, email), recipient:profiles!recipient_id(id, full_name, email)")
     .single();
 
   if (err) return NextResponse.json({ error: err.message }, { status: 500 });

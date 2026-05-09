@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 const navLinks = [
   { href: "/", label: "Hem" },
@@ -12,9 +13,32 @@ const navLinks = [
   { href: "/kontakt", label: "Kontakt" },
 ];
 
+type AuthState = { name: string; initial: string } | null;
+
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const [auth, setAuth] = useState<AuthState | undefined>(undefined);
   const pathname = usePathname();
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) { setAuth(null); return; }
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", user.id)
+        .single();
+      const name = data?.full_name ?? data?.email ?? "Mina sidor";
+      setAuth({ name, initial: name.charAt(0).toUpperCase() });
+    });
+  }, []);
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
@@ -55,21 +79,48 @@ export default function Navbar() {
             ))}
           </nav>
 
-          {/* Auth buttons */}
+          {/* Auth buttons – desktop */}
           <div className="hidden md:flex items-center gap-3">
-            <Link
-              href="/logga-in"
-              className="text-sm font-medium text-gray-700 hover:text-[#7B3FB0] transition-colors"
-            >
-              Logga in
-            </Link>
-            <Link
-              href="/kurser"
-              className="text-sm font-semibold text-white px-4 py-2 rounded-lg transition-all hover:opacity-90 active:scale-95"
-              style={{ backgroundColor: "#7B3FB0" }}
-            >
-              Anmäl dig
-            </Link>
+            {auth === undefined ? (
+              /* Laddar – visa ingenting för att undvika flash */
+              <div className="w-24 h-9" />
+            ) : auth ? (
+              /* Inloggad */
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/portal"
+                  className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-[#7B3FB0] transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: "#7B3FB0" }}>
+                    {auth.initial}
+                  </div>
+                  <span className="hidden lg:block max-w-[120px] truncate">{auth.name}</span>
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="text-sm font-medium text-gray-500 hover:text-red-500 transition-colors"
+                >
+                  Logga ut
+                </button>
+              </div>
+            ) : (
+              /* Ej inloggad */
+              <>
+                <Link
+                  href="/logga-in"
+                  className="text-sm font-medium text-gray-700 hover:text-[#7B3FB0] transition-colors"
+                >
+                  Logga in
+                </Link>
+                <Link
+                  href="/kurser"
+                  className="text-sm font-semibold text-white px-4 py-2 rounded-lg transition-all hover:opacity-90 active:scale-95"
+                  style={{ backgroundColor: "#7B3FB0" }}
+                >
+                  Anmäl dig
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -107,21 +158,41 @@ export default function Navbar() {
             </Link>
           ))}
           <div className="pt-2 border-t border-gray-100 flex flex-col gap-2">
-            <Link
-              href="/logga-in"
-              onClick={() => setOpen(false)}
-              className="block text-sm font-medium text-gray-700 py-2 hover:text-[#7B3FB0]"
-            >
-              Logga in
-            </Link>
-            <Link
-              href="/kurser"
-              onClick={() => setOpen(false)}
-              className="block text-sm font-semibold text-white text-center px-4 py-2 rounded-lg"
-              style={{ backgroundColor: "#7B3FB0" }}
-            >
-              Anmäl dig
-            </Link>
+            {auth ? (
+              <>
+                <Link
+                  href="/portal"
+                  onClick={() => setOpen(false)}
+                  className="block text-sm font-medium text-gray-700 py-2 hover:text-[#7B3FB0]"
+                >
+                  Mina sidor ({auth.name})
+                </Link>
+                <button
+                  onClick={() => { setOpen(false); handleLogout(); }}
+                  className="block w-full text-left text-sm font-medium text-red-500 py-2"
+                >
+                  Logga ut
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/logga-in"
+                  onClick={() => setOpen(false)}
+                  className="block text-sm font-medium text-gray-700 py-2 hover:text-[#7B3FB0]"
+                >
+                  Logga in
+                </Link>
+                <Link
+                  href="/kurser"
+                  onClick={() => setOpen(false)}
+                  className="block text-sm font-semibold text-white text-center px-4 py-2 rounded-lg"
+                  style={{ backgroundColor: "#7B3FB0" }}
+                >
+                  Anmäl dig
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

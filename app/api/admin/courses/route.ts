@@ -31,6 +31,8 @@ export async function POST(req: NextRequest) {
       teacher_id: body.teacher_id || null,
       max_participants: body.max_participants ? Number(body.max_participants) : null,
       is_active: true,
+      is_subscription: body.is_subscription !== false,
+      stripe_price_id: body.stripe_price_id?.trim() || null,
     })
     .select()
     .single();
@@ -58,6 +60,8 @@ export async function PUT(req: NextRequest) {
       teacher_id: rest.teacher_id || null,
       max_participants: rest.max_participants ? Number(rest.max_participants) : null,
       is_active: rest.is_active ?? true,
+      is_subscription: rest.is_subscription !== false,
+      stripe_price_id: rest.stripe_price_id?.trim() || null,
     })
     .eq("id", id)
     .select()

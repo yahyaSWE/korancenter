@@ -64,13 +64,15 @@ export default function LoggaIn() {
       {/* Höger panel – formulär */}
       <div className="flex-1 flex items-center justify-center p-6 lg:bg-white lg:rounded-l-3xl">
         <div className="w-full max-w-md">
-          {/* Mobil-logga */}
-          <Link href="/" className="flex items-center gap-3 mb-8 lg:hidden">
-            <Image src="/images/logo.png" alt="Korancenter" width={44} height={44} className="object-contain" />
-            <p className="font-bold text-lg" style={{ color: "#7B3FB0" }}>Korancenter</p>
+          {/* Logga */}
+          <Link href="/" className="flex flex-col items-center gap-2 mb-8">
+            <Image src="/images/logo.png" alt="Korancenter" width={64} height={64} className="object-contain" />
+            <p className="font-bold text-xl" style={{ color: "#7B3FB0" }}>
+              Koran<span className="text-gray-800">center</span>
+            </p>
           </Link>
 
-          <div className="mb-8">
+          <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Logga in</h1>
             <p className="text-gray-500">Välkommen tillbaka till elevportalen.</p>
           </div>

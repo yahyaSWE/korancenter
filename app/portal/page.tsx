@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import SubscriptionCard from "./components/SubscriptionCard";
 
 export default async function PortalDashboard() {
   const supabase = await createClient();
@@ -15,11 +16,12 @@ export default async function PortalDashboard() {
 
   const { data: enrollments } = await supabase
     .from("enrollments")
-    .select("course_id")
+    .select("id, course_id, payment_status, subscription_status, current_period_end, stripe_subscription_id, course:courses!course_id(title, is_subscription)")
     .eq("student_id", user.id)
     .eq("payment_status", "paid");
 
-  const courseIds = enrollments?.map((e) => e.course_id) ?? [];
+  const activeEnrollments = enrollments ?? [];
+  const courseIds = activeEnrollments.map((e) => e.course_id);
 
   const [{ data: upcomingLessons }, { data: messages }, { count: completedCount }] =
     await Promise.all([
@@ -60,10 +62,11 @@ export default async function PortalDashboard() {
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Välkommen tillbaka, {firstName}! 👋</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Välkommen tillbaka, {firstName}!</h1>
         <p className="text-gray-500 mt-1">Här är en översikt av dina kurser och kommande lektioner.</p>
       </div>
 
+      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
           { label: "Aktiva kurser", value: String(courseIds.length), icon: "📚" },
@@ -79,7 +82,30 @@ export default async function PortalDashboard() {
         ))}
       </div>
 
+      {/* Prenumerationer */}
+      {activeEnrollments.length > 0 && (
+        <div className="mb-6 space-y-3">
+          <h2 className="font-semibold text-gray-900">Mina prenumerationer</h2>
+          {activeEnrollments.map((e) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const course = e.course as any;
+            return (
+              <SubscriptionCard
+                key={e.id}
+                enrollmentId={e.id}
+                courseTitle={course?.title ?? "Okänd kurs"}
+                isSubscription={course?.is_subscription ?? false}
+                subscriptionStatus={e.subscription_status as string | null}
+                currentPeriodEnd={e.current_period_end}
+                hasStripeSubscription={!!e.stripe_subscription_id}
+              />
+            );
+          })}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Kommande lektioner */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">Kommande lektioner</h2>
@@ -126,6 +152,7 @@ export default async function PortalDashboard() {
           </div>
         </div>
 
+        {/* Snabblänkar + senaste meddelande */}
         <div className="space-y-4">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100">
