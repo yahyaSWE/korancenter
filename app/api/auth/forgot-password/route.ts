@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     type: "recovery",
     email,
     options: {
-      redirectTo: `${siteUrl}/api/auth/callback?next=/portal/nytt-losenord`,
+      redirectTo: `${siteUrl}/satt-losenord`,
     },
   });
 

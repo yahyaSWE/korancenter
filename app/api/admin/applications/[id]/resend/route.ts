@@ -47,7 +47,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const { data: linkData } = await admin.auth.admin.generateLink({
       type: "recovery",
       email: application.email,
-      options: { redirectTo: `${siteUrl}/api/auth/callback?next=/portal/nytt-losenord` },
+      options: { redirectTo: `${siteUrl}/satt-losenord` },
     });
     passwordSetupLink = linkData?.properties?.action_link ?? null;
   } else {
@@ -57,7 +57,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       email: application.email,
       options: {
         data: { full_name: application.name },
-        redirectTo: `${siteUrl}/api/auth/callback?next=/portal/nytt-losenord`,
+        redirectTo: `${siteUrl}/satt-losenord`,
       },
     });
     if (linkErr || !linkData?.user) {

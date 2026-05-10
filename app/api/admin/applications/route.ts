@@ -78,7 +78,7 @@ export async function PATCH(req: NextRequest) {
           email: application.email,
           options: {
             data: { full_name: application.name },
-            redirectTo: `${siteUrl}/api/auth/callback?next=/portal/nytt-losenord`,
+            redirectTo: `${siteUrl}/satt-losenord`,
           },
         });
 
