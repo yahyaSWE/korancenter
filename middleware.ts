@@ -56,9 +56,18 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Omdirigera inloggade från /logga-in till /portal
+  // Omdirigera inloggade från /logga-in baserat på roll
   if (pathname === "/logga-in" && user) {
-    return NextResponse.redirect(new URL("/portal", req.url));
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const dest =
+      profile?.role === "admin" ? "/admin" :
+      profile?.role === "teacher" ? "/larare" :
+      "/portal";
+    return NextResponse.redirect(new URL(dest, req.url));
   }
 
   return res;

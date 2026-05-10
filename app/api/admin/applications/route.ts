@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/require-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendApplicationStatusEmail, sendPaymentLinkEmail } from "@/lib/email";
+import { sendApplicationStatusEmail, sendApprovalEmail } from "@/lib/email";
 import { getStripe } from "@/lib/stripe";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -55,22 +55,51 @@ export async function PATCH(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const redirectName = (application as any).redirect_course?.title;
 
-  // Vid godkännande: försök skapa enrollment + Stripe checkout
+  // Vid godkännande: skapa konto (om inte finns) + enrollment + Stripe checkout + skicka mail
   if (status === "approved" && course?.id) {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    let studentId: string | null = null;
+    let passwordSetupLink: string | null = null;
+
     try {
-      // Hitta elev med samma e-post
-      const { data: profile } = await admin
+      // Hitta befintlig profil
+      const { data: existing } = await admin
         .from("profiles")
         .select("id")
         .eq("email", application.email)
         .maybeSingle();
 
-      if (profile) {
+      if (existing) {
+        studentId = existing.id;
+      } else {
+        // Skapa konto + generera invite-länk i ett anrop
+        const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+          type: "invite",
+          email: application.email,
+          options: {
+            data: { full_name: application.name },
+            redirectTo: `${siteUrl}/api/auth/callback?next=/portal/nytt-losenord`,
+          },
+        });
+
+        if (!linkErr && linkData?.user) {
+          studentId = linkData.user.id;
+          passwordSetupLink = linkData.properties?.action_link ?? null;
+
+          // Säkerställ att profilen har rätt namn och rollen "student"
+          await admin.from("profiles").update({
+            full_name: application.name,
+            role: "student",
+          }).eq("id", studentId);
+        }
+      }
+
+      if (studentId) {
         // Skapa enrollment (pending)
         const { data: enrollment } = await admin
           .from("enrollments")
           .insert({
-            student_id: profile.id,
+            student_id: studentId,
             course_id: course.id,
             payment_status: "pending",
             subscription_status: "awaiting_payment",
@@ -78,9 +107,9 @@ export async function PATCH(req: NextRequest) {
           .select("id")
           .single();
 
-        // Skicka betalningslänk om kursen har stripe_price_id
+        // Skapa Stripe checkout om kursen har stripe_price_id
+        let checkoutUrl: string | null = null;
         if (enrollment && course.stripe_price_id) {
-          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
           const stripe = getStripe();
           const session = await stripe.checkout.sessions.create({
             mode: course.is_subscription ? "subscription" : "payment",
@@ -93,25 +122,26 @@ export async function PATCH(req: NextRequest) {
               ? { subscription_data: { metadata: { enrollment_id: enrollment.id } } }
               : {}),
           });
-
-          if (session.url) {
-            await sendPaymentLinkEmail({
-              toEmail: application.email,
-              applicantName: application.name,
-              courseName: course.title,
-              checkoutUrl: session.url,
-            });
-            return NextResponse.json({ ok: true });
-          }
+          checkoutUrl = session.url;
         }
+
+        await sendApprovalEmail({
+          toEmail: application.email,
+          applicantName: application.name,
+          courseName: course.title,
+          checkoutUrl,
+          passwordSetupLink,
+        });
+
+        return NextResponse.json({ ok: true });
       }
     } catch (e) {
-      console.error("Stripe/enrollment error vid godkännande:", e);
-      // Faller igenom till vanligt godkännandemail nedan
+      console.error("Godkännande-flöde misslyckades:", e);
+      // Faller vidare till standardmail nedan
     }
   }
 
-  // Standardmail (godkänd utan Stripe, nekad, eller hänvisad)
+  // Standardmail (nekad, hänvisad, eller godkänd där flödet ovan misslyckades)
   await sendApplicationStatusEmail({
     toEmail: application.email,
     applicantName: application.name,

@@ -21,10 +21,14 @@ export interface Course {
   is_active: boolean
   is_subscription: boolean
   stripe_price_id: string | null
+  meeting_link: string | null
+  weekly_schedule: WeeklySchedule | null
   max_participants: number | null
   created_at: string
   teacher?: Profile
 }
+
+export type WeeklySchedule = Array<{ enabled: boolean; time: string }>
 
 export type SubscriptionStatus =
   | "active"
@@ -71,6 +75,19 @@ export interface Material {
   file_size_bytes: number | null
   created_at: string
   lesson?: Lesson
+  course?: Course
+}
+
+export interface StudentProgress {
+  id: string
+  student_id: string
+  course_id: string
+  teacher_id: string | null
+  homework: string | null
+  last_lesson_summary: string | null
+  next_lesson_notes: string | null
+  updated_at: string
+  student?: Profile
   course?: Course
 }
 

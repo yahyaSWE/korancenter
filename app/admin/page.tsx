@@ -65,7 +65,7 @@ export default function AdminPanel() {
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [msgRecipient, setMsgRecipient] = useState<Profile | null>(null);
 
-  const [courseForm, setCourseForm] = useState({ title: "", description: "", level: "beginner", price_sek: "", sessions_per_week: "2", duration_weeks: "", max_participants: "", teacher_id: "", stripe_price_id: "", is_subscription: true });
+  const [courseForm, setCourseForm] = useState({ title: "", description: "", level: "beginner", price_sek: "", sessions_per_week: "2", duration_weeks: "", max_participants: "", teacher_id: "", stripe_price_id: "", is_subscription: true, meeting_link: "", weekly_schedule: defaultDays() });
   const [bulkForm, setBulkForm] = useState({ course_id: "", title_prefix: "Lektion", start_date: "", weeks: "4", duration_minutes: "60", meeting_link: "", days: defaultDays() });
   const [studentForm, setStudentForm] = useState({ email: "", full_name: "", password: "" });
   const [enrollForm, setEnrollForm] = useState({ student_id: "", course_id: "" });
@@ -103,12 +103,12 @@ export default function AdminPanel() {
   // Courses
   const openCreateCourse = () => {
     setEditCourse(null);
-    setCourseForm({ title: "", description: "", level: "beginner", price_sek: "", sessions_per_week: "2", duration_weeks: "", max_participants: "", teacher_id: "", stripe_price_id: "", is_subscription: true });
+    setCourseForm({ title: "", description: "", level: "beginner", price_sek: "", sessions_per_week: "2", duration_weeks: "", max_participants: "", teacher_id: "", stripe_price_id: "", is_subscription: true, meeting_link: "", weekly_schedule: defaultDays() });
     setShowCourseModal(true);
   };
   const openEditCourse = (c: Course) => {
     setEditCourse(c);
-    setCourseForm({ title: c.title, description: c.description ?? "", level: c.level ?? "beginner", price_sek: String(c.price_sek), sessions_per_week: String(c.sessions_per_week), duration_weeks: c.duration_weeks ? String(c.duration_weeks) : "", max_participants: c.max_participants ? String(c.max_participants) : "", teacher_id: c.teacher_id ?? "", stripe_price_id: c.stripe_price_id ?? "", is_subscription: c.is_subscription });
+    setCourseForm({ title: c.title, description: c.description ?? "", level: c.level ?? "beginner", price_sek: String(c.price_sek), sessions_per_week: String(c.sessions_per_week), duration_weeks: c.duration_weeks ? String(c.duration_weeks) : "", max_participants: c.max_participants ? String(c.max_participants) : "", teacher_id: c.teacher_id ?? "", stripe_price_id: c.stripe_price_id ?? "", is_subscription: c.is_subscription, meeting_link: c.meeting_link ?? "", weekly_schedule: Array.isArray(c.weekly_schedule) && c.weekly_schedule.length === 7 ? c.weekly_schedule : defaultDays() });
     setShowCourseModal(true);
   };
   const saveCourse = async () => {
@@ -127,8 +127,24 @@ export default function AdminPanel() {
   };
 
   // Bulk lessons
+  const scheduleFromCourse = (courseId: string): DaySchedule[] => {
+    const c = courses.find((x) => x.id === courseId);
+    return Array.isArray(c?.weekly_schedule) && c!.weekly_schedule.length === 7
+      ? (c!.weekly_schedule as DaySchedule[])
+      : defaultDays();
+  };
   const openBulkModal = (courseId?: string) => {
-    setBulkForm({ course_id: courseId ?? courses[0]?.id ?? "", title_prefix: "Lektion", start_date: "", weeks: "4", duration_minutes: "60", meeting_link: "", days: defaultDays() });
+    const id = courseId ?? courses[0]?.id ?? "";
+    const c = courses.find((x) => x.id === id);
+    setBulkForm({
+      course_id: id,
+      title_prefix: "Lektion",
+      start_date: "",
+      weeks: "4",
+      duration_minutes: "60",
+      meeting_link: c?.meeting_link ?? "",
+      days: scheduleFromCourse(id),
+    });
     setShowBulkModal(true);
   };
   const previewDates = generateLessonDates(bulkForm.start_date, parseInt(bulkForm.weeks) || 0, bulkForm.days);
@@ -350,6 +366,54 @@ export default function AdminPanel() {
                 ))}
               </select>
             </Field>
+            <Field label="Lektionslänk (Microsoft Teams)">
+              <input
+                className={inputCls}
+                type="url"
+                value={courseForm.meeting_link}
+                onChange={(e) => setCourseForm({ ...courseForm, meeting_link: e.target.value })}
+                placeholder="https://teams.microsoft.com/l/meetup-join/..."
+              />
+              <p className="text-xs text-gray-400 mt-1">Samma länk används för alla lektioner i kursen och visas tydligt på elevens portal.</p>
+            </Field>
+
+            {courseForm.is_subscription && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Veckoschema</label>
+                <div className="space-y-2 rounded-xl border border-gray-100 p-3 bg-gray-50">
+                  {DAY_NAMES.map((day, idx) => (
+                    <div key={idx} className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer flex-1">
+                        <input
+                          type="checkbox"
+                          checked={courseForm.weekly_schedule[idx]?.enabled ?? false}
+                          onChange={(e) => {
+                            const sched = [...courseForm.weekly_schedule];
+                            sched[idx] = { ...sched[idx], enabled: e.target.checked };
+                            setCourseForm({ ...courseForm, weekly_schedule: sched });
+                          }}
+                          className="w-4 h-4 rounded accent-[#7B3FB0]"
+                        />
+                        <span className="text-sm text-gray-700 w-20">{day}</span>
+                      </label>
+                      {courseForm.weekly_schedule[idx]?.enabled && (
+                        <input
+                          type="time"
+                          value={courseForm.weekly_schedule[idx]?.time ?? "18:00"}
+                          onChange={(e) => {
+                            const sched = [...courseForm.weekly_schedule];
+                            sched[idx] = { ...sched[idx], time: e.target.value };
+                            setCourseForm({ ...courseForm, weekly_schedule: sched });
+                          }}
+                          className="px-2 py-1 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B3FB0]"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Sparas på kursen och fylls i automatiskt när du skapar nya lektioner.</p>
+              </div>
+            )}
             <div className="border-t border-gray-100 pt-4 space-y-3">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Stripe / Betalning</p>
               <label className="flex items-center gap-3 cursor-pointer">
@@ -384,7 +448,16 @@ export default function AdminPanel() {
         <Modal title="Lägg till lektioner" onClose={() => setShowBulkModal(false)} wide>
           <div className="space-y-4">
             <Field label="Kurs *">
-              <select className={inputCls} value={bulkForm.course_id} onChange={(e) => setBulkForm({ ...bulkForm, course_id: e.target.value })}>
+              <select className={inputCls} value={bulkForm.course_id} onChange={(e) => {
+                const newId = e.target.value;
+                const c = courses.find((x) => x.id === newId);
+                setBulkForm({
+                  ...bulkForm,
+                  course_id: newId,
+                  days: scheduleFromCourse(newId),
+                  meeting_link: c?.meeting_link ?? bulkForm.meeting_link,
+                });
+              }}>
                 <option value="">Välj kurs...</option>
                 {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
               </select>

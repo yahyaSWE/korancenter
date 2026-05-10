@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 
 type StudentEnrollment = {
   id: string;
@@ -133,13 +134,22 @@ export default function LarareElever() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={() => { setMsgStudent(s); setMsgForm({ subject: "", content: "" }); }}
-                      className="text-xs font-medium px-3 py-1.5 rounded-lg"
-                      style={{ backgroundColor: "#F5EEFF", color: "#7B3FB0" }}
-                    >
-                      Skicka meddelande
-                    </button>
+                    <div className="flex gap-2 justify-end">
+                      <Link
+                        href={`/larare/elever/${s.id}`}
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg text-white hover:opacity-90"
+                        style={{ backgroundColor: "#7B3FB0" }}
+                      >
+                        Anteckningar →
+                      </Link>
+                      <button
+                        onClick={() => { setMsgStudent(s); setMsgForm({ subject: "", content: "" }); }}
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg"
+                        style={{ backgroundColor: "#F5EEFF", color: "#7B3FB0" }}
+                      >
+                        Meddelande
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

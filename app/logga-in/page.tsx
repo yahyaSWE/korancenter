@@ -18,17 +18,28 @@ export default function LoggaIn() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error, data } = await supabase.auth.signInWithPassword({
       email: form.email,
       password: form.password,
     });
 
-    if (error) {
+    if (error || !data.user) {
       setError("Fel e-postadress eller lösenord. Försök igen.");
       setLoading(false);
-    } else {
-      router.push("/portal");
+      return;
     }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", data.user.id)
+      .single();
+
+    const dest =
+      profile?.role === "admin" ? "/admin" :
+      profile?.role === "teacher" ? "/larare" :
+      "/portal";
+    router.push(dest);
   };
 
   return (

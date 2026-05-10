@@ -16,7 +16,27 @@ type CourseData = {
   sessions_per_week: number;
   max_participants: number | null;
   enrolled_count: number;
+  weekly_schedule: Array<{ enabled: boolean; time: string }> | null;
 };
+
+const DAY_NAMES_FULL = ["Måndagar", "Tisdagar", "Onsdagar", "Torsdagar", "Fredagar", "Lördagar", "Söndagar"];
+
+function formatSchedule(sched: CourseData["weekly_schedule"]): string | null {
+  if (!Array.isArray(sched)) return null;
+  const enabled = sched
+    .map((d, i) => (d?.enabled ? { day: DAY_NAMES_FULL[i], time: d.time } : null))
+    .filter((x): x is { day: string; time: string } => x !== null);
+  if (enabled.length === 0) return null;
+  // Gruppera dagar med samma tid: "Måndagar & Torsdagar 18:00"
+  const byTime = new Map<string, string[]>();
+  for (const { day, time } of enabled) {
+    if (!byTime.has(time)) byTime.set(time, []);
+    byTime.get(time)!.push(day);
+  }
+  return Array.from(byTime.entries())
+    .map(([time, days]) => `${days.join(" & ")} kl. ${time}`)
+    .join(" · ");
+}
 
 type WaitlistForm = {
   name: string;
@@ -131,6 +151,15 @@ export default function Kurser() {
   const [wLoading, setWLoading]             = useState(false);
   const [wDone, setWDone]                   = useState(false);
 
+  // Lås bakgrundsscroll när en modal är öppen
+  useEffect(() => {
+    if (applyCourse || waitlistCourse) {
+      const original = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => { document.body.style.overflow = original; };
+    }
+  }, [applyCourse, waitlistCourse]);
+
   useEffect(() => {
     (async () => {
       const [coursesRes, supabase] = await Promise.all([
@@ -218,15 +247,31 @@ export default function Kurser() {
 
       {/* Application Modal */}
       {applyCourse && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="px-6 py-5 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">Ansök – {applyCourse.title}</h2>
-              <p className="text-sm text-gray-400 mt-1">Fyll i dina uppgifter så granskar läraren din ansökan.</p>
-            </div>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto overscroll-contain"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setApplyCourse(null); }}
+        >
+          <div className="min-h-full flex items-center justify-center p-4 sm:p-6">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col my-4 max-h-[calc(100vh-2rem)] overflow-hidden">
+              <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-3 shrink-0">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Ansök – {applyCourse.title}</h2>
+                  <p className="text-sm text-gray-400 mt-1">Fyll i dina uppgifter så granskar läraren din ansökan.</p>
+                </div>
+                <button
+                  onClick={() => setApplyCourse(null)}
+                  aria-label="Stäng"
+                  className="text-gray-400 hover:text-gray-600 -mr-1"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
 
             {appDone ? (
-              <div className="px-6 py-10 text-center">
+              <div className="px-6 py-10 text-center overflow-y-auto">
                 <div className="text-4xl mb-3">🎉</div>
                 <p className="font-semibold text-gray-900 mb-1">Ansökan skickad!</p>
                 <p className="text-sm text-gray-400 mb-2">Du får svar via e-post när läraren granskat din ansökan.</p>
@@ -234,7 +279,7 @@ export default function Kurser() {
                 <button onClick={() => setApplyCourse(null)} className="text-sm text-gray-400 hover:text-gray-600 underline">Stäng</button>
               </div>
             ) : (
-              <div className="px-6 py-5 space-y-4">
+              <div className="px-6 py-5 space-y-4 overflow-y-auto">
                 {/* Payment info banner */}
                 <div className="rounded-xl p-4 text-sm" style={{ backgroundColor: "#F5EEFF" }}>
                   <p className="font-semibold mb-1" style={{ color: "#7B3FB0" }}>Betalningsinformation</p>
@@ -297,28 +342,45 @@ export default function Kurser() {
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
       )}
 
       {/* Waitlist Modal */}
       {waitlistCourse && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="px-6 py-5 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">Anmäl intresse – {waitlistCourse.title}</h2>
-              <p className="text-sm text-gray-400 mt-1">Kursen är fullbokad. Fyll i formuläret så kontaktar vi dig om en plats öppnas.</p>
-            </div>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto overscroll-contain"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setWaitlistCourse(null); }}
+        >
+          <div className="min-h-full flex items-center justify-center p-4 sm:p-6">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col my-4 max-h-[calc(100vh-2rem)] overflow-hidden">
+              <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-3 shrink-0">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Anmäl intresse – {waitlistCourse.title}</h2>
+                  <p className="text-sm text-gray-400 mt-1">Kursen är fullbokad. Fyll i formuläret så kontaktar vi dig om en plats öppnas.</p>
+                </div>
+                <button
+                  onClick={() => setWaitlistCourse(null)}
+                  aria-label="Stäng"
+                  className="text-gray-400 hover:text-gray-600 -mr-1"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
 
             {wDone ? (
-              <div className="px-6 py-10 text-center">
+              <div className="px-6 py-10 text-center overflow-y-auto">
                 <div className="text-4xl mb-3">✅</div>
                 <p className="font-semibold text-gray-900 mb-1">Du är tillagd i kön!</p>
                 <p className="text-sm text-gray-400 mb-6">Vi hör av oss via e-post eller telefon när en plats öppnas.</p>
                 <button onClick={() => setWaitlistCourse(null)} className="text-sm text-gray-400 hover:text-gray-600 underline">Stäng</button>
               </div>
             ) : (
-              <div className="px-6 py-5 space-y-4">
+              <div className="px-6 py-5 space-y-4 overflow-y-auto">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Namn *</label>
                   <input
@@ -376,6 +438,7 @@ export default function Kurser() {
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
       )}
@@ -436,11 +499,21 @@ export default function Kurser() {
                           <span className="text-4xl font-bold text-gray-900">{(course.price_sek / 100).toLocaleString("sv-SE")}</span>
                           <span className="text-gray-500 mb-1">kr/mån</span>
                         </div>
-                        <div className="flex gap-3 text-xs text-gray-400 mb-6">
+                        <div className="flex gap-3 text-xs text-gray-400 mb-3">
                           {course.duration_weeks && <span>{course.duration_weeks} veckor</span>}
                           {course.duration_weeks && <span>•</span>}
                           <span>{course.sessions_per_week} lekt/vecka</span>
                         </div>
+                        {formatSchedule(course.weekly_schedule) && (
+                          <div className="flex items-center gap-2 mb-6 px-3 py-2 rounded-lg" style={{ backgroundColor: "#F5EEFF" }}>
+                            <svg className="w-4 h-4 shrink-0" style={{ color: "#7B3FB0" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span className="text-xs font-medium" style={{ color: "#7B3FB0" }}>
+                              {formatSchedule(course.weekly_schedule)}
+                            </span>
+                          </div>
+                        )}
 
                         <SpotsBar enrolled={course.enrolled_count} max={course.max_participants} />
 

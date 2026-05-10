@@ -45,49 +45,79 @@ export async function sendNewApplicationEmail({
   });
 }
 
-export async function sendPaymentLinkEmail({
+export async function sendApprovalEmail({
   toEmail,
   applicantName,
   courseName,
   checkoutUrl,
+  passwordSetupLink,
 }: {
   toEmail: string;
   applicantName: string;
   courseName: string;
-  checkoutUrl: string;
+  checkoutUrl: string | null;
+  passwordSetupLink: string | null;
 }) {
   const resend = getResend();
   if (!resend) return;
 
+  const stepCount = (checkoutUrl ? 1 : 0) + (passwordSetupLink ? 1 : 0);
+  let stepIdx = 0;
+
+  const checkoutBlock = checkoutUrl
+    ? `
+      <div style="background:#F9F5FF;border:1px solid #E9D5FF;border-radius:10px;padding:20px;margin:14px 0">
+        <p style="margin:0 0 6px;color:#7B3FB0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">${stepCount > 1 ? `Steg ${++stepIdx}` : "Aktivera kursplats"}</p>
+        <p style="margin:0 0 14px;color:#1A1520;font-weight:600">Betala och aktivera prenumerationen</p>
+        <a href="${checkoutUrl}"
+           style="display:inline-block;background:#7B3FB0;color:white;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600">
+          Betala via Stripe
+        </a>
+        <p style="margin:12px 0 0;color:#7B3FB0;font-size:12px">Faktureras var 3:e månad – avbokas när som helst.</p>
+      </div>`
+    : "";
+
+  const passwordBlock = passwordSetupLink
+    ? `
+      <div style="background:#FAFAFA;border:1px solid #EEE;border-radius:10px;padding:20px;margin:14px 0">
+        <p style="margin:0 0 6px;color:#666;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">${stepCount > 1 ? `Steg ${++stepIdx}` : "Skapa konto"}</p>
+        <p style="margin:0 0 14px;color:#1A1520;font-weight:600">Sätt ditt lösenord och logga in i elevportalen</p>
+        <a href="${passwordSetupLink}"
+           style="display:inline-block;background:white;color:#7B3FB0;border:2px solid #7B3FB0;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">
+          Skapa lösenord
+        </a>
+        <p style="margin:12px 0 0;color:#999;font-size:12px">Länken är giltig i 24 timmar.</p>
+      </div>`
+    : "";
+
+  const intro = stepCount > 1
+    ? "Slutför följande steg för att komma igång – du kan göra dem i vilken ordning du vill:"
+    : checkoutUrl
+    ? "Slutför din betalning så aktiveras din kursplats:"
+    : passwordSetupLink
+    ? "Sätt ditt lösenord så du kommer åt din elevportal:"
+    : "Vi kontaktar dig snart med nästa steg.";
+
   await resend.emails.send({
     from: FROM,
     to: toEmail,
-    subject: `Din betalningslänk till ${courseName}`,
+    subject: `Din ansökan till ${courseName} är godkänd!`,
     html: `
-      <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+      <div style="font-family:sans-serif;max-width:540px;margin:0 auto">
         <div style="background:linear-gradient(135deg,#5C2D8A,#7B3FB0);padding:32px;border-radius:12px 12px 0 0;text-align:center">
           <h1 style="color:white;margin:0;font-size:22px">Korancenter</h1>
-          <p style="color:rgba(255,255,255,0.8);margin:6px 0 0">Betalning för din kursplats</p>
+          <p style="color:rgba(255,255,255,0.85);margin:6px 0 0">Din ansökan är godkänd</p>
         </div>
-        <div style="padding:32px;background:#fff;border:1px solid #eee;border-radius:0 0 12px 12px">
-          <h2 style="color:#1A1520">Assalamu alaikum, ${applicantName}!</h2>
+        <div style="padding:28px;background:#fff;border:1px solid #eee;border-radius:0 0 12px 12px">
+          <h2 style="color:#1A1520;margin-top:0">Assalamu alaikum, ${applicantName}!</h2>
           <p style="color:#555;line-height:1.6">
-            Din ansökan till <strong>${courseName}</strong> har godkänts. Klicka på knappen nedan för att slutföra din betalning och aktivera din kursplats.
+            Din ansökan till <strong>${courseName}</strong> är godkänd. ${intro}
           </p>
-          <div style="background:#F5EEFF;border-radius:8px;padding:16px;margin:20px 0">
-            <p style="margin:0;color:#7B3FB0;font-size:13px">
-              Prenumerationen faktureras var 3:e månad. Du kan när som helst avsluta via din elevportal.
-            </p>
-          </div>
-          <div style="text-align:center;margin:28px 0">
-            <a href="${checkoutUrl}"
-               style="background:#7B3FB0;color:white;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px">
-              Betala och aktivera kursplats
-            </a>
-          </div>
-          <p style="color:#999;font-size:12px;text-align:center">
-            Länken är giltig i 24 timmar. Kontakta oss om du har frågor.<br/>
-            <strong>Korancenter</strong> · info@korancenter.se
+          ${checkoutBlock}
+          ${passwordBlock}
+          <p style="color:#999;font-size:12px;text-align:center;margin-top:24px">
+            Frågor? Kontakta oss på <a href="mailto:info@korancenter.se" style="color:#7B3FB0">info@korancenter.se</a><br/>
+            <strong>Korancenter</strong>
           </p>
         </div>
       </div>

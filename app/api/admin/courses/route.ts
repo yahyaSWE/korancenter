@@ -33,6 +33,8 @@ export async function POST(req: NextRequest) {
       is_active: true,
       is_subscription: body.is_subscription !== false,
       stripe_price_id: body.stripe_price_id?.trim() || null,
+      meeting_link: body.meeting_link?.trim() || null,
+      weekly_schedule: Array.isArray(body.weekly_schedule) ? body.weekly_schedule : null,
     })
     .select()
     .single();
@@ -62,6 +64,8 @@ export async function PUT(req: NextRequest) {
       is_active: rest.is_active ?? true,
       is_subscription: rest.is_subscription !== false,
       stripe_price_id: rest.stripe_price_id?.trim() || null,
+      meeting_link: rest.meeting_link?.trim() || null,
+      weekly_schedule: Array.isArray(rest.weekly_schedule) ? rest.weekly_schedule : null,
     })
     .eq("id", id)
     .select()

@@ -16,7 +16,7 @@ export default async function PortalDashboard() {
 
   const { data: enrollments } = await supabase
     .from("enrollments")
-    .select("id, course_id, payment_status, subscription_status, current_period_end, stripe_subscription_id, course:courses!course_id(title, is_subscription)")
+    .select("id, course_id, payment_status, subscription_status, current_period_end, stripe_subscription_id, course:courses!course_id(title, is_subscription, meeting_link)")
     .eq("student_id", user.id)
     .eq("payment_status", "paid");
 
@@ -61,10 +61,59 @@ export default async function PortalDashboard() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Välkommen tillbaka, {firstName}!</h1>
         <p className="text-gray-500 mt-1">Här är en översikt av dina kurser och kommande lektioner.</p>
       </div>
+
+      {/* Lektionsrum (Teams) */}
+      {activeEnrollments.some((e) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const c = e.course as any;
+        return c?.meeting_link;
+      }) && (
+        <div className="mb-8 space-y-3">
+          {activeEnrollments.map((e) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const course = e.course as any;
+            if (!course?.meeting_link) return null;
+            return (
+              <div
+                key={e.id}
+                className="rounded-2xl p-5 sm:p-6 text-white shadow-sm"
+                style={{ background: "linear-gradient(135deg, #5C2D8A 0%, #7B3FB0 100%)" }}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-12 h-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs text-white/70 mb-0.5">Lektionsrum</p>
+                      <p className="font-semibold truncate">{course.title}</p>
+                      <p className="text-xs text-white/70 mt-1">Klicka för att gå med i Microsoft Teams-mötet.</p>
+                    </div>
+                  </div>
+                  <a
+                    href={course.meeting_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-white hover:bg-white/90 transition-colors shrink-0"
+                    style={{ color: "#7B3FB0" }}
+                  >
+                    Gå till lektion
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                  </a>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
