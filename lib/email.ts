@@ -45,6 +45,48 @@ export async function sendNewApplicationEmail({
   });
 }
 
+export async function sendPasswordResetEmail({
+  toEmail,
+  resetLink,
+}: {
+  toEmail: string;
+  resetLink: string;
+}) {
+  const resend = getResend();
+  if (!resend) return;
+
+  await resend.emails.send({
+    from: FROM,
+    to: toEmail,
+    subject: "Återställ ditt lösenord – Korancenter",
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+        <div style="background:linear-gradient(135deg,#5C2D8A,#7B3FB0);padding:32px;border-radius:12px 12px 0 0;text-align:center">
+          <h1 style="color:white;margin:0;font-size:22px">Korancenter</h1>
+          <p style="color:rgba(255,255,255,0.85);margin:6px 0 0">Återställ ditt lösenord</p>
+        </div>
+        <div style="padding:28px;background:#fff;border:1px solid #eee;border-radius:0 0 12px 12px">
+          <p style="color:#555;line-height:1.6">
+            Klicka på knappen nedan för att välja ett nytt lösenord till ditt konto. Länken är giltig i 24 timmar.
+          </p>
+          <div style="text-align:center;margin:28px 0">
+            <a href="${resetLink}"
+               style="display:inline-block;background:#7B3FB0;color:white;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold">
+              Välj nytt lösenord
+            </a>
+          </div>
+          <p style="color:#999;font-size:12px;line-height:1.6">
+            Om du inte begärde en lösenordsåterställning kan du ignorera detta mejl — ditt lösenord ändras inte förrän du klickar på länken och väljer ett nytt.
+          </p>
+          <p style="color:#999;font-size:12px;text-align:center;margin-top:24px">
+            <strong>Korancenter</strong> · info@korancenter.se
+          </p>
+        </div>
+      </div>
+    `,
+  });
+}
+
 export async function sendApprovalEmail({
   toEmail,
   applicantName,

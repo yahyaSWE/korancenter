@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
 
 export default function AterstallLosenord() {
   const [email, setEmail] = useState("");
@@ -13,12 +12,13 @@ export default function AterstallLosenord() {
     e.preventDefault();
     setStatus("loading");
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/api/auth/callback?next=/portal/nytt-losenord`,
+    const res = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
     });
 
-    setStatus(error ? "error" : "success");
+    setStatus(res.ok ? "success" : "error");
   };
 
   return (
