@@ -245,6 +245,19 @@ export default function AdminPanel() {
   };
 
   // Applications
+  const [resendingAppId, setResendingAppId] = useState<string | null>(null);
+  const resendApplicationEmail = async (app: ApplicationRow) => {
+    setResendingAppId(app.id);
+    const res = await fetch(`/api/admin/applications/${app.id}/resend`, { method: "POST" });
+    setResendingAppId(null);
+    if (res.ok) {
+      toast(`Mejl skickat till ${app.email}.`);
+    } else {
+      const d = await res.json();
+      toast(d.error ?? "Kunde inte skicka mejl.");
+    }
+  };
+
   const submitReview = async () => {
     if (!appReviewing) return;
     setSaving(true);
@@ -333,7 +346,7 @@ export default function AdminPanel() {
           <WaitlistTab waitlist={waitlist} onDelete={deleteWaitlist} />
         )}
         {tab === "applications" && (
-          <ApplicationsTab applications={applications} courses={courses} appFilter={appFilter} onFilterChange={setAppFilter} appReviewing={appReviewing} appReviewForm={appReviewForm} onReviewFormChange={setAppReviewForm} onStartReview={(app) => { setAppReviewing(app); setAppReviewForm({ status: "approved", redirect_course_id: "", admin_notes: "" }); }} onCancelReview={() => setAppReviewing(null)} onSubmitReview={submitReview} saving={saving} />
+          <ApplicationsTab applications={applications} courses={courses} appFilter={appFilter} onFilterChange={setAppFilter} appReviewing={appReviewing} appReviewForm={appReviewForm} onReviewFormChange={setAppReviewForm} onStartReview={(app) => { setAppReviewing(app); setAppReviewForm({ status: "approved", redirect_course_id: "", admin_notes: "" }); }} onCancelReview={() => setAppReviewing(null)} onSubmitReview={submitReview} onResendEmail={resendApplicationEmail} resendingId={resendingAppId} saving={saving} />
         )}
       </div>
 

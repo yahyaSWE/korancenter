@@ -22,13 +22,15 @@ type Props = {
   onStartReview: (app: ApplicationRow) => void;
   onCancelReview: () => void;
   onSubmitReview: () => void;
+  onResendEmail: (app: ApplicationRow) => void;
+  resendingId: string | null;
   saving: boolean;
 };
 
 export function ApplicationsTab({
   applications, courses, appFilter, onFilterChange,
   appReviewing, appReviewForm, onReviewFormChange,
-  onStartReview, onCancelReview, onSubmitReview, saving,
+  onStartReview, onCancelReview, onSubmitReview, onResendEmail, resendingId, saving,
 }: Props) {
   const filtered = applications.filter((a) => appFilter === "all" || a.status === appFilter);
   const pendingCount = applications.filter((a) => a.status === "pending").length;
@@ -87,6 +89,16 @@ export function ApplicationsTab({
                     {app.status === "pending" && (
                       <button onClick={() => onStartReview(app)} className="text-xs font-medium hover:underline" style={{ color: "#7B3FB0" }}>
                         Granska
+                      </button>
+                    )}
+                    {app.status === "approved" && (
+                      <button
+                        onClick={() => onResendEmail(app)}
+                        disabled={resendingId === app.id}
+                        className="text-xs font-medium hover:underline disabled:opacity-50"
+                        style={{ color: "#7B3FB0" }}
+                      >
+                        {resendingId === app.id ? "Skickar..." : "Skicka mejl igen"}
                       </button>
                     )}
                   </td>
