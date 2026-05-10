@@ -118,6 +118,7 @@ export async function PATCH(req: NextRequest) {
             success_url: `${siteUrl}/bekraftelse?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${siteUrl}/kurser`,
             metadata: { enrollment_id: enrollment.id },
+            allow_promotion_codes: true,
             ...(course.is_subscription
               ? { subscription_data: { metadata: { enrollment_id: enrollment.id } } }
               : {}),

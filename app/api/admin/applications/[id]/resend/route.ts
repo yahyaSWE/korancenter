@@ -106,6 +106,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       success_url: `${siteUrl}/bekraftelse?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${siteUrl}/kurser`,
       metadata: { enrollment_id: enrollmentId },
+      allow_promotion_codes: true,
       ...(course.is_subscription
         ? { subscription_data: { metadata: { enrollment_id: enrollmentId } } }
         : {}),
