@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import SubscriptionCard from "./components/SubscriptionCard";
 
 export default async function PortalDashboard() {
@@ -22,6 +23,24 @@ export default async function PortalDashboard() {
 
   const activeEnrollments = enrollments ?? [];
   const courseIds = activeEnrollments.map((e) => e.course_id);
+
+  // Hämta lärarens anteckningar (läxa + senaste lektion) för elevens aktiva kurser
+  const adminClient = createAdminClient();
+  const { data: progressRows } = courseIds.length > 0
+    ? await adminClient
+        .from("student_progress")
+        .select("course_id, homework, last_lesson_summary, updated_at")
+        .eq("student_id", user.id)
+        .in("course_id", courseIds)
+    : { data: [] };
+  const progressByCourse = new Map<string, { homework: string | null; last_lesson_summary: string | null; updated_at: string }>();
+  for (const p of progressRows ?? []) {
+    progressByCourse.set(p.course_id, {
+      homework: p.homework,
+      last_lesson_summary: p.last_lesson_summary,
+      updated_at: p.updated_at,
+    });
+  }
 
   const [{ data: upcomingLessons }, { data: messages }, { count: completedCount }] =
     await Promise.all([
@@ -109,6 +128,59 @@ export default async function PortalDashboard() {
                     </svg>
                   </a>
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Läxa till nästa lektion */}
+      {activeEnrollments.some((e) => {
+        const p = progressByCourse.get(e.course_id);
+        return p?.homework || p?.last_lesson_summary;
+      }) && (
+        <div className="mb-8 space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <svg className="w-5 h-5" style={{ color: "#7B3FB0" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            <h2 className="font-semibold text-gray-900">Läxa till nästa lektion</h2>
+          </div>
+          {activeEnrollments.map((e) => {
+            const p = progressByCourse.get(e.course_id);
+            if (!p?.homework && !p?.last_lesson_summary) return null;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const course = e.course as any;
+            return (
+              <div
+                key={e.id}
+                className="bg-white rounded-2xl border-2 shadow-sm p-5"
+                style={{ borderColor: "#E9D5FF" }}
+              >
+                <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                  <span className="text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full" style={{ backgroundColor: "#F5EEFF", color: "#7B3FB0" }}>
+                    {course?.title ?? "Kurs"}
+                  </span>
+                  {p.updated_at && (
+                    <span className="text-xs text-gray-400">
+                      Uppdaterad {new Date(p.updated_at).toLocaleDateString("sv-SE", { day: "numeric", month: "short" })}
+                    </span>
+                  )}
+                </div>
+
+                {p.homework && (
+                  <div className="mb-3">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Din läxa</p>
+                    <p className="text-gray-800 leading-relaxed whitespace-pre-line">{p.homework}</p>
+                  </div>
+                )}
+
+                {p.last_lesson_summary && (
+                  <div className={p.homework ? "pt-3 border-t border-gray-100" : ""}>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Var slutade vi senast</p>
+                    <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{p.last_lesson_summary}</p>
+                  </div>
+                )}
               </div>
             );
           })}

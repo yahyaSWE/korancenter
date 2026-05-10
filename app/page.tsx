@@ -24,8 +24,6 @@ async function getStats() {
 export default async function Home() {
   const stats = await getStats();
 
-  const studentLabel = stats.students >= 100 ? "100+" : stats.students > 0 ? String(stats.students) : "100+";
-  const teacherLabel = stats.teachers > 0 ? String(stats.teachers) : "4";
   const courseLabel = stats.courses > 0 ? String(stats.courses) : "3";
 
   return (
@@ -83,12 +81,11 @@ export default async function Home() {
         {/* Stats */}
         <section className="py-14 bg-white">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            <div className="flex flex-wrap justify-center items-start gap-12 sm:gap-16 text-center">
               {[
-                { value: studentLabel, label: "Nöjda elever" },
-                { value: teacherLabel, label: "Erfarna lärare" },
+                { value: "500+", label: "Nöjda elever" },
+                { value: "4", label: "Erfarna lärare" },
                 { value: courseLabel, label: "Aktiva kurser" },
-                { value: "5★", label: "Betyg" },
               ].map((stat) => (
                 <div key={stat.label}>
                   <p className="text-3xl font-bold" style={{ color: "#7B3FB0" }}>{stat.value}</p>

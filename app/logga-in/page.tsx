@@ -73,8 +73,8 @@ export default function LoggaIn() {
       </div>
 
       {/* Höger panel – formulär */}
-      <div className="flex-1 flex items-center justify-center p-6 lg:bg-white lg:rounded-l-3xl">
-        <div className="w-full max-w-md">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:bg-white lg:rounded-l-3xl">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 sm:p-8 lg:bg-transparent lg:rounded-none lg:shadow-none lg:p-0">
           {/* Logga */}
           <Link href="/" className="flex flex-col items-center gap-2 mb-8">
             <Image src="/images/logo.png" alt="Korancenter" width={64} height={64} className="object-contain" />

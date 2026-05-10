@@ -492,7 +492,18 @@ export default function Kurser() {
 
                         <h2 className="text-xl font-bold text-gray-900 mt-4 mb-2">{course.title}</h2>
                         {course.description && (
-                          <p className="text-gray-500 text-sm leading-relaxed mb-6">{course.description}</p>
+                          <ul className="text-gray-500 text-sm leading-relaxed mb-6 space-y-1.5">
+                            {course.description
+                              .split(/\s*-\s+/)
+                              .map((s) => s.trim())
+                              .filter(Boolean)
+                              .map((item, i) => (
+                                <li key={i} className="flex gap-2">
+                                  <span className="shrink-0" style={{ color: "#7B3FB0" }}>•</span>
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                          </ul>
                         )}
 
                         <div className="flex items-end gap-1 mb-1">
