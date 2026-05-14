@@ -18,6 +18,7 @@ export type ApplicationRow = {
   created_at: string;
   course: { id: string; title: string } | null;
   redirect_course: { id: string; title: string } | null;
+  payment_status?: "paid" | "pending" | "cancelled" | "refunded" | null;
 };
 
 export type WaitlistRow = {

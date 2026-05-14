@@ -81,9 +81,27 @@ export function ApplicationsTab({
                   </td>
                   <td className="px-6 py-4 text-gray-500 text-xs max-w-[200px] truncate">{app.experience ?? <span className="italic text-gray-300">Ej angivet</span>}</td>
                   <td className="px-6 py-4">
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_LABELS[app.status]?.color ?? ""}`}>
-                      {STATUS_LABELS[app.status]?.label ?? app.status}
-                    </span>
+                    <div className="flex flex-col gap-1 items-start">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_LABELS[app.status]?.color ?? ""}`}>
+                        {STATUS_LABELS[app.status]?.label ?? app.status}
+                      </span>
+                      {app.status === "approved" && app.payment_status && (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                          app.payment_status === "paid"
+                            ? "bg-green-50 text-green-600"
+                            : app.payment_status === "pending"
+                            ? "bg-amber-50 text-amber-600"
+                            : app.payment_status === "cancelled"
+                            ? "bg-gray-100 text-gray-500"
+                            : "bg-gray-100 text-gray-500"
+                        }`}>
+                          {app.payment_status === "paid" && "✓ Betald"}
+                          {app.payment_status === "pending" && "⏳ Väntar på betalning"}
+                          {app.payment_status === "cancelled" && "Avbruten"}
+                          {app.payment_status === "refunded" && "Återbetald"}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-right">
                     {app.status === "pending" && (
@@ -91,7 +109,17 @@ export function ApplicationsTab({
                         Granska
                       </button>
                     )}
-                    {app.status === "approved" && (
+                    {app.status === "approved" && app.payment_status !== "paid" && (
+                      <button
+                        onClick={() => onResendEmail(app)}
+                        disabled={resendingId === app.id}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white hover:opacity-90 disabled:opacity-50"
+                        style={{ backgroundColor: "#7B3FB0" }}
+                      >
+                        {resendingId === app.id ? "Skickar..." : "Skicka betalningslänk"}
+                      </button>
+                    )}
+                    {app.status === "approved" && app.payment_status === "paid" && (
                       <button
                         onClick={() => onResendEmail(app)}
                         disabled={resendingId === app.id}
