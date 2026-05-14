@@ -14,23 +14,33 @@ export default function SattLosenord() {
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    // Supabase JS klienten läser automatiskt access_token från URL-fragmentet
-    // och sätter sessionen. Vi väntar lite och kollar att sessionen finns.
     const supabase = createClient();
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setStatus("ready");
-        // Rensa fragmentet ur URL:en så det inte ligger kvar
-        if (window.location.hash) {
-          history.replaceState(null, "", window.location.pathname);
+
+    const init = async () => {
+      // @supabase/ssr-klienten plockar inte upp tokens från URL-fragment automatiskt
+      // — vi parsar det manuellt och kallar setSession för att etablera sessionen.
+      const hash = typeof window !== "undefined" ? window.location.hash : "";
+      if (hash && hash.includes("access_token")) {
+        const params = new URLSearchParams(hash.substring(1));
+        const access_token = params.get("access_token");
+        const refresh_token = params.get("refresh_token");
+
+        if (access_token && refresh_token) {
+          const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
+          if (data.session && !error) {
+            setStatus("ready");
+            history.replaceState(null, "", window.location.pathname);
+            return;
+          }
         }
-      } else {
-        setStatus("no-session");
       }
+
+      // Ingen token i fragmentet — kolla om det redan finns en aktiv session (t.ex. invite-flöde)
+      const { data: { session } } = await supabase.auth.getSession();
+      setStatus(session ? "ready" : "no-session");
     };
-    // Ge Supabase JS en tick att processa fragmentet
-    setTimeout(checkSession, 200);
+
+    init();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
