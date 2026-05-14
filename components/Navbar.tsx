@@ -110,7 +110,7 @@ export default function Navbar() {
                   href="/logga-in"
                   className="text-sm font-medium text-gray-700 hover:text-[#7B3FB0] transition-colors"
                 >
-                  Logga in
+                  Elevportal
                 </Link>
                 <Link
                   href="/kurser"
@@ -181,7 +181,7 @@ export default function Navbar() {
                   onClick={() => setOpen(false)}
                   className="block text-sm font-medium text-gray-700 py-2 hover:text-[#7B3FB0]"
                 >
-                  Logga in
+                  Elevportal
                 </Link>
                 <Link
                   href="/kurser"

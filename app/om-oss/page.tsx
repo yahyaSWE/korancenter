@@ -36,9 +36,7 @@ async function getStats() {
 export default async function OmOss() {
   const stats = await getStats();
 
-  const studentLabel = stats.students >= 100 ? "100+" : stats.students > 0 ? `${stats.students}` : "100+";
-  const teacherLabel = stats.teachers > 0 ? `${stats.teachers} st` : "4 st";
-  const courseLabel = stats.courses > 0 ? `${stats.courses}` : "3 nivåer";
+  const courseLabel = stats.courses > 0 ? `${stats.courses}` : "3";
 
   return (
     <>
@@ -81,8 +79,8 @@ export default async function OmOss() {
                 <div className="mt-8 grid grid-cols-2 gap-4">
                   {[
                     { label: "Grundat", value: "2020" },
-                    { label: "Elever totalt", value: studentLabel },
-                    { label: "Lärare", value: teacherLabel },
+                    { label: "Nöjda elever", value: "500+" },
+                    { label: "Erfarna lärare", value: "4" },
                     { label: "Aktiva kurser", value: courseLabel },
                   ].map((item) => (
                     <div key={item.label} className="bg-gray-50 rounded-xl p-4">

@@ -64,8 +64,10 @@ const LEVEL_LABELS: Record<string, string> = {
 const faqs = [
   { q: "Hur sker undervisningen?", a: "All undervisning sker online via videosamtal (Google Meet eller Zoom). Du behöver bara en dator, surfplatta eller telefon med kamera och mikrofon." },
   { q: "Vad händer om jag missar en lektion?", a: "Om man missar en lektion kan man ta del av det man har missat via elevsidan." },
-  { q: "Är kurserna för alla åldrar?", a: "Ja, vi tar emot elever från 8 år och uppåt. Barn och unga undervisas med anpassad pedagogik." },
-  { q: "Hur betalar jag?", a: "Betalning sker för 3 månader i taget i förväg. Vi fakturerar via Klarna och du kan betala med kort (Visa/Mastercard) eller Swish." },
+  { q: "Vad händer om läraren måste ställa in en lektion?", a: "Läraren kommer försöka ersätta lektionen på annan tid." },
+  { q: "Kan man ansöka till en fullsatt kurs?", a: "Ja, då hamnar man på en väntelista." },
+  { q: "Är kurserna för alla åldrar?", a: "Ja, vi tar emot elever från 11 år och uppåt. Barn och unga undervisas med anpassad pedagogik." },
+  { q: "Hur betalar jag?", a: "Betalning sker för 3 månader i taget i förväg. Vi fakturerar via Stripe och du kan betala med kort (Visa/Mastercard) eller Klarna." },
   { q: "Varför betalar man för 3 månader åt gången?", a: "Vi arbetar med 3-månadersperioder för att säkerställa engagemang och kontinuitet i studierna. Det ger också bättre förutsättningar för att nå resultat och upprätthålla en seriös och strukturerad nivå i undervisningen." },
   { q: "Vad händer om man vill avsluta sina studier innan 3 månader?", a: "Anmälan gäller för hela 3-månadersperioden och avgiften återbetalas inte vid avbrutna studier." },
 ];
@@ -448,7 +450,7 @@ export default function Kurser() {
         <section className="py-20" style={{ background: "linear-gradient(135deg, #1A1520 0%, #2E1A47 100%)" }}>
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h1 className="text-4xl sm:text-5xl font-bold text-white mb-6">Kurser & Priser</h1>
-            <p className="text-white/70 text-lg">Välj den kurs som passar din nivå och börja din koranresa i dag.</p>
+            <p className="text-white/70 text-lg">Välj den kurs som passar din nivå och börja din koranresa idag.</p>
           </div>
         </section>
 

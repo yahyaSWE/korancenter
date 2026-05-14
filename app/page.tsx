@@ -172,6 +172,110 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* Elevportal */}
+        <section className="py-20 bg-gray-50">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              <div>
+                <span className="inline-block text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-4" style={{ backgroundColor: "#F5EEFF", color: "#7B3FB0" }}>
+                  Elevportal
+                </span>
+                <h2 className="text-3xl font-bold text-gray-900 mb-4">Allt på ett ställe i din elevportal</h2>
+                <p className="text-gray-500 mb-8 leading-relaxed">
+                  Som elev hos oss får du tillgång till en personlig portal där du har koll på allt som rör din koranresa.
+                </p>
+                <ul className="space-y-4">
+                  {[
+                    { title: "Direkt tillgång till lektionsrummet", desc: "Ett klick och du är inne på Microsoft Teams-mötet — samma länk för alla lektioner." },
+                    { title: "Se din läxa och var du slutade senast", desc: "Läraren skriver in vad du ska göra till nästa gång så du alltid vet vad som väntar." },
+                    { title: "Kommunicera med din lärare", desc: "Skicka meddelanden direkt i portalen — inget mejlbollande." },
+                    { title: "Koll på betalningar och prenumeration", desc: "Se nästa fakturadatum och avsluta när du vill — direkt från portalen." },
+                  ].map((feature) => (
+                    <li key={feature.title} className="flex gap-3">
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ backgroundColor: "#7B3FB0" }}>
+                        <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900">{feature.title}</p>
+                        <p className="text-sm text-gray-500 mt-0.5">{feature.desc}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/logga-in"
+                  className="inline-flex items-center gap-2 mt-8 px-6 py-3 rounded-xl font-semibold text-white hover:opacity-90 transition-opacity"
+                  style={{ backgroundColor: "#7B3FB0" }}
+                >
+                  Gå till elevportalen
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </Link>
+              </div>
+              <div className="relative">
+                <div className="rounded-3xl p-8 shadow-xl" style={{ background: "linear-gradient(135deg, #5C2D8A 0%, #7B3FB0 100%)" }}>
+                  <div className="bg-white rounded-2xl p-5 mb-4 shadow-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: "#F5EEFF" }}>
+                        <svg className="w-5 h-5" style={{ color: "#7B3FB0" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Lektionsrum</p>
+                        <p className="font-semibold text-gray-900 text-sm">Nybörjarkurs</p>
+                      </div>
+                    </div>
+                    <div className="text-xs font-semibold text-white px-4 py-2.5 rounded-lg text-center" style={{ backgroundColor: "#7B3FB0" }}>
+                      Gå till lektion →
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-2xl p-5 shadow-lg">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Din läxa</p>
+                    <p className="text-sm text-gray-800 mb-3">Memorera vers 31–35. Öva uttal av qalqalah-bokstäverna.</p>
+                    <p className="text-xs text-gray-400">Var slutade vi: Sura Al-Baqarah, vers 25–30</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Vanliga frågor */}
+        <section className="py-20 bg-white">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">Vanliga frågor</h2>
+            <div className="space-y-3">
+              {[
+                { q: "Hur sker undervisningen?", a: "All undervisning sker online via videosamtal. Du behöver bara en dator, surfplatta eller telefon med kamera och mikrofon." },
+                { q: "Vad händer om jag missar en lektion?", a: "Om man missar en lektion kan man ta del av det man har missat via elevportalen." },
+                { q: "Vad händer om läraren måste ställa in en lektion?", a: "Läraren kommer försöka ersätta lektionen på annan tid." },
+                { q: "Kan man ansöka till en fullsatt kurs?", a: "Ja, då hamnar man på en väntelista." },
+                { q: "Är kurserna för alla åldrar?", a: "Ja, vi tar emot elever från 11 år och uppåt. Barn och unga undervisas med anpassad pedagogik." },
+                { q: "Hur betalar jag?", a: "Betalning sker för 3 månader i taget i förväg. Vi fakturerar via Stripe och du kan betala med kort eller Klarna." },
+              ].map((faq, i) => (
+                <details key={i} className="group bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
+                  <summary className="px-5 py-4 cursor-pointer font-semibold text-gray-900 flex items-center justify-between list-none">
+                    {faq.q}
+                    <svg className="w-5 h-5 text-gray-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </summary>
+                  <p className="px-5 pb-4 text-gray-500 text-sm leading-relaxed">{faq.a}</p>
+                </details>
+              ))}
+            </div>
+            <div className="text-center mt-8">
+              <Link href="/kurser#faq" className="text-sm font-medium hover:underline" style={{ color: "#7B3FB0" }}>
+                Se alla frågor →
+              </Link>
+            </div>
+          </div>
+        </section>
+
         {/* CTA */}
         <section className="py-20" style={{ background: "linear-gradient(135deg, #5C2D8A 0%, #7B3FB0 100%)" }}>
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
