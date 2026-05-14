@@ -46,14 +46,6 @@ export default function LoggaIn() {
     <div className="min-h-screen flex" style={{ background: "linear-gradient(135deg, #1A1520 0%, #2E1A47 100%)" }}>
       {/* Vänster panel */}
       <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center p-12 text-white">
-        <Link href="/" className="flex flex-col items-center gap-3 mb-12">
-          <Image src="/images/logo.png" alt="Korancenter" width={80} height={80} className="object-contain brightness-0 invert" />
-          <div className="text-center">
-            <p className="text-2xl font-bold">Koran<span style={{ color: "#C49BD3" }}>center</span></p>
-            <p className="text-sm text-white/60">Lär dig Koranen</p>
-          </div>
-        </Link>
-
         <div className="max-w-xs text-center">
           <h2 className="text-3xl font-bold mb-4">Välkommen tillbaka</h2>
           <p className="text-white/70 leading-relaxed">

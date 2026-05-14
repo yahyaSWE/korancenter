@@ -12,13 +12,15 @@ export default function Footer() {
           {/* Brand */}
           <div>
             <Link href="/" className="flex items-center gap-3 mb-4">
-              <Image
-                src="/images/logo.png"
-                alt="Korancenter logga"
-                width={52}
-                height={52}
-                className="object-contain brightness-0 invert"
-              />
+              <div className="w-14 h-14 rounded-xl bg-white p-1.5 flex items-center justify-center shrink-0">
+                <Image
+                  src="/images/logo.png"
+                  alt="Korancenter logga"
+                  width={52}
+                  height={52}
+                  className="object-contain w-full h-full"
+                />
+              </div>
               <div>
                 <p className="font-bold text-lg leading-tight">
                   Koran<span style={{ color: "#C49BD3" }}>center</span>
