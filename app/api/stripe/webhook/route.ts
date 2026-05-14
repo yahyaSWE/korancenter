@@ -13,20 +13,28 @@ export async function POST(req: NextRequest) {
   const body = await req.text();
   const sig = req.headers.get("stripe-signature");
 
-  if (!sig || !process.env.STRIPE_WEBHOOK_SECRET) {
-    return NextResponse.json({ error: "Saknar signatur eller webhook-hemlighet" }, { status: 400 });
+  if (!sig) {
+    console.error("[stripe-webhook] saknar stripe-signature-header");
+    return NextResponse.json({ error: "Saknar signatur" }, { status: 400 });
+  }
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    console.error("[stripe-webhook] STRIPE_WEBHOOK_SECRET saknas i miljövariabler");
+    return NextResponse.json({ error: "Webhook-hemlighet ej konfigurerad" }, { status: 500 });
   }
 
   let event: Stripe.Event;
   try {
     event = getStripe().webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-  } catch {
-    return NextResponse.json({ error: "Ogiltig signatur" }, { status: 400 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[stripe-webhook] signaturverifiering misslyckades:", msg);
+    return NextResponse.json({ error: "Ogiltig signatur: " + msg }, { status: 400 });
   }
 
-  const admin = createAdminClient();
+  try {
+    const admin = createAdminClient();
 
-  switch (event.type) {
+    switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const enrollmentId = session.metadata?.enrollment_id;
@@ -88,6 +96,10 @@ export async function POST(req: NextRequest) {
       }).eq("stripe_subscription_id", sub.id);
       break;
     }
+    }
+  } catch (err) {
+    console.error(`[stripe-webhook] fel vid hantering av ${event.type}:`, err);
+    return NextResponse.json({ error: "Internt fel vid bearbetning" }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });
