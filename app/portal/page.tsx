@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { expandWeeklySchedule } from "@/lib/lessons";
 import SubscriptionCard from "./components/SubscriptionCard";
 
 export default async function PortalDashboard() {
@@ -17,7 +18,7 @@ export default async function PortalDashboard() {
 
   const { data: enrollments } = await supabase
     .from("enrollments")
-    .select("id, course_id, payment_status, subscription_status, current_period_end, stripe_subscription_id, course:courses!course_id(title, is_subscription, meeting_link)")
+    .select("id, course_id, payment_status, subscription_status, current_period_end, stripe_subscription_id, course:courses!course_id(title, is_subscription, meeting_link, weekly_schedule)")
     .eq("student_id", user.id)
     .eq("payment_status", "paid");
 
@@ -42,7 +43,10 @@ export default async function PortalDashboard() {
     });
   }
 
-  const [{ data: upcomingLessons }, { data: messages }, { count: completedCount }] =
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 60 * 86_400_000);
+
+  const [{ data: dbLessons }, { data: messages }, { count: completedCount }] =
     await Promise.all([
       courseIds.length > 0
         ? supabase
@@ -50,9 +54,9 @@ export default async function PortalDashboard() {
             .select("*, course:courses(title)")
             .in("course_id", courseIds)
             .eq("is_cancelled", false)
-            .gte("scheduled_at", new Date().toISOString())
+            .gte("scheduled_at", now.toISOString())
             .order("scheduled_at", { ascending: true })
-            .limit(4)
+            .limit(8)
         : Promise.resolve({ data: [] }),
       supabase
         .from("messages")
@@ -77,6 +81,23 @@ export default async function PortalDashboard() {
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "tillbaka";
   const latestMessage = messages?.[0];
+
+  // Slå ihop konkreta lektioner från databasen med virtuella från weekly_schedule
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const virtualLessons = activeEnrollments.flatMap((e: any) => {
+    const c = e.course;
+    if (!c) return [];
+    return expandWeeklySchedule(
+      { id: e.course_id, title: c.title, weekly_schedule: c.weekly_schedule, meeting_link: c.meeting_link },
+      now,
+      horizon,
+      4,
+    );
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const upcomingLessons = [...(dbLessons ?? []), ...virtualLessons]
+    .sort((a: any, b: any) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+    .slice(0, 4);
 
   return (
     <div className="max-w-5xl mx-auto">

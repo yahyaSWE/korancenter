@@ -157,7 +157,7 @@ export default async function Home() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
               {[
                 { step: "1", title: "Välj din kurs", desc: "Bläddra bland våra kurser och välj den nivå som passar dig bäst." },
-                { step: "2", title: "Anmäl dig & betala", desc: "Registrera dig och betala säkert med Klarna – kort eller Swish." },
+                { step: "2", title: "Anmäl dig & betala", desc: "Registrera dig och betala säkert via Stripe med kort eller Klarna." },
                 { step: "3", title: "Börja lära dig", desc: "Logga in i elevportalen och påbörja din koranresa med din lärare." },
               ].map((item) => (
                 <div key={item.step} className="flex flex-col items-center text-center">

@@ -544,7 +544,7 @@ export default function Kurser() {
               </div>
             )}
             <p className="text-center text-sm text-gray-400 mt-8">
-              Betalning sker säkert via Klarna (Visa/Mastercard & Swish). Fakturering per 3-månadersperiod i förväg.
+              Betalning sker säkert via Stripe (Visa/Mastercard) eller Klarna. Fakturering per 3-månadersperiod i förväg.
             </p>
           </div>
         </section>

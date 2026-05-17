@@ -39,7 +39,7 @@ export default function Villkor() {
               <div>
                 <h2 className="text-xl font-bold text-gray-900 mb-3">3. Betalning</h2>
                 <p>
-                  Kursavgiften betalas månadsvis i förskott via Klarna (kort eller Swish).
+                  Kursavgiften betalas i förskott var tredje månad via Stripe (kort) eller Klarna.
                   Avgiften debiteras automatiskt vid varje ny betalningsperiod. Priserna anges
                   inklusive moms om inget annat anges.
                 </p>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { expandWeeklySchedule } from "@/lib/lessons";
 
 type Lesson = {
   id: string;
@@ -51,10 +52,11 @@ export default function Schema() {
       if (!user) { router.push("/logga-in"); return; }
 
       const { data: enrollments } = await supabase
-        .from("enrollments").select("course_id")
+        .from("enrollments")
+        .select("course_id, course:courses!course_id(id, title, weekly_schedule, meeting_link)")
         .eq("student_id", user.id).eq("payment_status", "paid");
 
-      const ids = enrollments?.map((e) => e.course_id) ?? [];
+      const ids = (enrollments ?? []).map((e) => e.course_id);
       if (ids.length === 0) { setLoading(false); return; }
 
       const { data } = await supabase
@@ -64,7 +66,34 @@ export default function Schema() {
         .eq("is_cancelled", false)
         .order("scheduled_at", { ascending: true });
 
-      setLessons((data ?? []) as Lesson[]);
+      const dbLessons = (data ?? []) as Lesson[];
+
+      // Generera virtuella lektioner från weekly_schedule för 6 månader framåt
+      const horizon = new Date();
+      horizon.setMonth(horizon.getMonth() + 6);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const virtuals: Lesson[] = (enrollments ?? []).flatMap((e: any) => {
+        const c = e.course;
+        if (!c) return [];
+        return expandWeeklySchedule(
+          { id: c.id, title: c.title, weekly_schedule: c.weekly_schedule, meeting_link: c.meeting_link },
+          new Date(),
+          horizon,
+          200,
+        ).map((v) => ({
+          id: v.id,
+          title: v.title,
+          scheduled_at: v.scheduled_at,
+          duration_minutes: v.duration_minutes,
+          meeting_link: v.meeting_link,
+          course: v.course ?? null,
+        }));
+      });
+
+      const merged = [...dbLessons, ...virtuals]
+        .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+
+      setLessons(merged);
       setLoading(false);
     })();
   }, [router]);

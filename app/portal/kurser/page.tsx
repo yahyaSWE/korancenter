@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { expandWeeklySchedule } from "@/lib/lessons";
 
 const levelLabels: Record<string, string> = {
   beginner: "Nybörjare",
@@ -19,6 +20,9 @@ export default async function MinaKurser() {
     .eq("student_id", user.id)
     .eq("payment_status", "paid");
 
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 60 * 86_400_000); // 60 dagar fram
+
   const enriched = await Promise.all(
     (enrollments ?? []).map(async (enrollment) => {
       const [{ count: total }, { count: completed }, { data: nextLessons }] = await Promise.all([
@@ -32,23 +36,42 @@ export default async function MinaKurser() {
           .select("*", { count: "exact", head: true })
           .eq("course_id", enrollment.course_id)
           .eq("is_cancelled", false)
-          .lt("scheduled_at", new Date().toISOString()),
+          .lt("scheduled_at", now.toISOString()),
         supabase
           .from("lessons")
           .select("scheduled_at, meeting_link, title")
           .eq("course_id", enrollment.course_id)
           .eq("is_cancelled", false)
-          .gte("scheduled_at", new Date().toISOString())
+          .gte("scheduled_at", now.toISOString())
           .order("scheduled_at", { ascending: true })
           .limit(1),
       ]);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const course = enrollment.course as any;
+      const virtuals = expandWeeklySchedule(
+        { id: enrollment.course_id, title: course?.title, weekly_schedule: course?.weekly_schedule, meeting_link: course?.meeting_link },
+        now,
+        horizon,
+        1,
+      );
+
+      // Plocka närmaste lektion av (databas-lektion, virtuell lektion)
+      const dbNext = nextLessons?.[0] ?? null;
+      const virtNext = virtuals[0] ?? null;
+      let nextLesson: { scheduled_at: string; meeting_link: string | null; title: string } | null = null;
+      if (dbNext && virtNext) {
+        nextLesson = new Date(dbNext.scheduled_at) <= new Date(virtNext.scheduled_at) ? dbNext : virtNext;
+      } else {
+        nextLesson = dbNext ?? virtNext;
+      }
 
       return {
         ...enrollment,
         total: total ?? 0,
         completed: completed ?? 0,
         progress: total ? Math.round(((completed ?? 0) / total) * 100) : 0,
-        nextLesson: nextLessons?.[0] ?? null,
+        nextLesson,
       };
     })
   );
