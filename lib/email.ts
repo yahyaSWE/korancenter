@@ -87,6 +87,62 @@ export async function sendPasswordResetEmail({
   });
 }
 
+export async function sendEnrollmentActivatedEmail({
+  toEmails,
+  studentName,
+  studentEmail,
+  courseName,
+}: {
+  toEmails: string[];
+  studentName: string;
+  studentEmail: string;
+  courseName: string;
+}) {
+  const resend = getResend();
+  if (!resend || toEmails.length === 0) return;
+
+  await resend.emails.send({
+    from: FROM,
+    to: toEmails,
+    subject: `Ny aktiv elev – ${studentName} (${courseName})`,
+    html: `
+      <div style="font-family:sans-serif;max-width:540px;margin:0 auto">
+        <div style="background:linear-gradient(135deg,#5C2D8A,#7B3FB0);padding:28px;border-radius:12px 12px 0 0;text-align:center">
+          <h1 style="color:white;margin:0;font-size:20px">Korancenter</h1>
+          <p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:14px">Ny aktiv elev</p>
+        </div>
+        <div style="padding:24px;background:#fff;border:1px solid #eee;border-radius:0 0 12px 12px">
+          <p style="color:#555;line-height:1.6;margin-top:0">
+            En elev har slutfört sin betalning och är nu aktiv i kursen.
+          </p>
+          <div style="background:#F9F5FF;border:1px solid #E9D5FF;border-radius:10px;padding:18px;margin:18px 0">
+            <table style="width:100%;font-size:14px">
+              <tr>
+                <td style="color:#666;padding:4px 0;width:90px">Elev</td>
+                <td style="color:#1A1520;font-weight:600">${studentName}</td>
+              </tr>
+              <tr>
+                <td style="color:#666;padding:4px 0">E-post</td>
+                <td style="color:#1A1520"><a href="mailto:${studentEmail}" style="color:#7B3FB0;text-decoration:none">${studentEmail}</a></td>
+              </tr>
+              <tr>
+                <td style="color:#666;padding:4px 0">Kurs</td>
+                <td style="color:#1A1520;font-weight:600">${courseName}</td>
+              </tr>
+            </table>
+          </div>
+          <p style="color:#555;font-size:13px;line-height:1.6">
+            Eleven har nu tillgång till kursens lektionsrum, schema och meddelandefunktionen.
+          </p>
+          <p style="color:#999;font-size:12px;text-align:center;margin-top:20px">
+            <strong>Korancenter</strong>
+          </p>
+        </div>
+      </div>
+    `,
+  });
+}
+
 export async function sendApprovalEmail({
   toEmail,
   applicantName,

@@ -1,7 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendEnrollmentActivatedEmail } from "@/lib/email";
 import type Stripe from "stripe";
+
+async function notifyTeacherAndAdmin(enrollmentId: string) {
+  try {
+    const admin = createAdminClient();
+    // Hämta enrollment + student + kurs + lärare
+    const { data: enrollment } = await admin
+      .from("enrollments")
+      .select("id, student:profiles!student_id(full_name, email), course:courses!course_id(title, teacher_id)")
+      .eq("id", enrollmentId)
+      .single();
+
+    if (!enrollment) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const student = (enrollment as any).student as { full_name: string | null; email: string | null } | null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const course = (enrollment as any).course as { title: string; teacher_id: string | null } | null;
+    if (!student || !course) return;
+
+    // Hämta lärarens e-post + alla admins
+    const recipients = new Set<string>();
+    if (course.teacher_id) {
+      const { data: teacher } = await admin.from("profiles").select("email").eq("id", course.teacher_id).single();
+      if (teacher?.email) recipients.add(teacher.email);
+    }
+    const { data: admins } = await admin.from("profiles").select("email").eq("role", "admin");
+    for (const a of admins ?? []) {
+      if (a.email) recipients.add(a.email);
+    }
+
+    if (recipients.size === 0) return;
+
+    await sendEnrollmentActivatedEmail({
+      toEmails: Array.from(recipients),
+      studentName: student.full_name ?? student.email ?? "Okänd elev",
+      studentEmail: student.email ?? "",
+      courseName: course.title,
+    });
+  } catch (e) {
+    console.error("[stripe-webhook] notifyTeacherAndAdmin error:", e);
+  }
+}
 
 function periodEnd(sub: Stripe.Subscription): string {
   // SDK v17+: current_period_end lives on the SubscriptionItem, not the Subscription
@@ -40,6 +82,14 @@ export async function POST(req: NextRequest) {
       const enrollmentId = session.metadata?.enrollment_id;
       if (!enrollmentId) break;
 
+      // Kolla om enrollmentet redan var betalt – då skippar vi notifikationen
+      const { data: prior } = await admin
+        .from("enrollments")
+        .select("payment_status")
+        .eq("id", enrollmentId)
+        .single();
+      const wasAlreadyPaid = prior?.payment_status === "paid";
+
       if (session.mode === "subscription" && session.subscription) {
         const sub = await getStripe().subscriptions.retrieve(session.subscription as string);
         await admin.from("enrollments").update({
@@ -54,6 +104,11 @@ export async function POST(req: NextRequest) {
           payment_status: "paid",
           stripe_customer_id: session.customer as string,
         }).eq("id", enrollmentId);
+      }
+
+      // Skicka notis till lärare + admin endast vid första aktiveringen
+      if (!wasAlreadyPaid) {
+        await notifyTeacherAndAdmin(enrollmentId);
       }
       break;
     }

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendApplicationStatusEmail } from "@/lib/email";
+import { runApprovalFlow } from "@/lib/approval";
 import { NextRequest, NextResponse } from "next/server";
 
 async function getTeacher() {
@@ -52,38 +52,31 @@ export async function PATCH(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Verify teacher owns this course
+  // Hämta ansökan + verifiera att läraren äger kursen
   const { data: application } = await admin
     .from("applications")
-    .select("*, course:courses!course_id(id, title, teacher_id), redirect_course:courses!redirect_course_id(title)")
+    .select("*, course:courses!course_id(id, title, teacher_id, stripe_price_id, is_subscription), redirect_course:courses!redirect_course_id(id, title)")
     .eq("id", id)
     .single();
 
   if (!application) return NextResponse.json({ error: "Ansökan hittades inte" }, { status: 404 });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if ((application as any).course?.teacher_id !== user!.id) {
-    return NextResponse.json({ error: "Ej behörig" }, { status: 403 });
+    // Tillåt admins ändå
+    const { data: profile } = await admin.from("profiles").select("role").eq("id", user!.id).single();
+    if (profile?.role !== "admin") {
+      return NextResponse.json({ error: "Ej behörig" }, { status: 403 });
+    }
   }
 
-  await admin.from("applications").update({
+  const result = await runApprovalFlow({
+    application,
     status,
-    redirect_course_id: status === "redirected" ? redirect_course_id : null,
-    admin_notes: admin_notes ?? null,
-    reviewed_at: new Date().toISOString(),
-    reviewed_by: user!.id,
-  }).eq("id", id);
+    reviewerId: user!.id,
+    redirectCourseId: redirect_course_id,
+    adminNotes: admin_notes,
+  });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const redirectName = (application as any).redirect_course?.title;
-  await sendApplicationStatusEmail({
-    toEmail: application.email,
-    applicantName: application.name,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    courseName: (application as any).course?.title ?? "",
-    status,
-    redirectCourseName: redirectName,
-    notes: admin_notes,
-  }).catch(() => {});
-
+  if ("error" in result) return NextResponse.json({ error: result.error }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
