@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+// Förhindra Next.js från att cacha resultatet på build-time
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET() {
   const admin = createAdminClient();
 
@@ -19,5 +23,10 @@ export async function GET() {
     enrolled_count: countMap[c.id] ?? 0,
   }));
 
-  return NextResponse.json(result);
+  return NextResponse.json(result, {
+    headers: {
+      // Säg åt browser/CDN att inte cacha svar — vi vill alltid ha fräscha siffror
+      "Cache-Control": "no-store, max-age=0",
+    },
+  });
 }
