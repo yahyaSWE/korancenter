@@ -143,6 +143,102 @@ export async function sendEnrollmentActivatedEmail({
   });
 }
 
+export async function sendEnrollmentCancelledEmail({
+  toEmails,
+  studentName,
+  studentEmail,
+  courseName,
+  endsAt,
+}: {
+  toEmails: string[];
+  studentName: string;
+  studentEmail: string;
+  courseName: string;
+  endsAt?: string | null;
+}) {
+  const resend = getResend();
+  if (!resend || toEmails.length === 0) return;
+
+  const endDateStr = endsAt
+    ? new Date(endsAt).toLocaleDateString("sv-SE", { day: "numeric", month: "long", year: "numeric" })
+    : null;
+  const intro = endDateStr
+    ? `Eleven har sagt upp sin prenumeration. Tillgången gäller fram till <strong>${endDateStr}</strong>, därefter inaktiveras kursen automatiskt.`
+    : `Elevens prenumeration är nu avslutad och de har inte längre tillgång till kursen.`;
+
+  await resend.emails.send({
+    from: FROM,
+    to: toEmails,
+    subject: `Avslutad prenumeration – ${studentName} (${courseName})`,
+    html: `
+      <div style="font-family:sans-serif;max-width:540px;margin:0 auto">
+        <div style="background:linear-gradient(135deg,#92400E,#F59E0B);padding:28px;border-radius:12px 12px 0 0;text-align:center">
+          <h1 style="color:white;margin:0;font-size:20px">Korancenter</h1>
+          <p style="color:rgba(255,255,255,0.9);margin:6px 0 0;font-size:14px">Avslutad prenumeration</p>
+        </div>
+        <div style="padding:24px;background:#fff;border:1px solid #eee;border-radius:0 0 12px 12px">
+          <p style="color:#555;line-height:1.6;margin-top:0">${intro}</p>
+          <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:18px;margin:18px 0">
+            <table style="width:100%;font-size:14px">
+              <tr><td style="color:#666;padding:4px 0;width:90px">Elev</td><td style="color:#1A1520;font-weight:600">${studentName}</td></tr>
+              <tr><td style="color:#666;padding:4px 0">E-post</td><td><a href="mailto:${studentEmail}" style="color:#7B3FB0;text-decoration:none">${studentEmail}</a></td></tr>
+              <tr><td style="color:#666;padding:4px 0">Kurs</td><td style="color:#1A1520;font-weight:600">${courseName}</td></tr>
+              ${endDateStr ? `<tr><td style="color:#666;padding:4px 0">Aktiv till</td><td style="color:#1A1520">${endDateStr}</td></tr>` : ""}
+            </table>
+          </div>
+          <p style="color:#999;font-size:12px;text-align:center;margin-top:20px"><strong>Korancenter</strong></p>
+        </div>
+      </div>
+    `,
+  });
+}
+
+export async function sendPaymentFailedEmail({
+  toEmails,
+  studentName,
+  studentEmail,
+  courseName,
+}: {
+  toEmails: string[];
+  studentName: string;
+  studentEmail: string;
+  courseName: string;
+}) {
+  const resend = getResend();
+  if (!resend || toEmails.length === 0) return;
+
+  await resend.emails.send({
+    from: FROM,
+    to: toEmails,
+    subject: `⚠️ Misslyckad betalning – ${studentName} (${courseName})`,
+    html: `
+      <div style="font-family:sans-serif;max-width:540px;margin:0 auto">
+        <div style="background:linear-gradient(135deg,#991B1B,#DC2626);padding:28px;border-radius:12px 12px 0 0;text-align:center">
+          <h1 style="color:white;margin:0;font-size:20px">Korancenter</h1>
+          <p style="color:rgba(255,255,255,0.9);margin:6px 0 0;font-size:14px">Misslyckad betalning</p>
+        </div>
+        <div style="padding:24px;background:#fff;border:1px solid #eee;border-radius:0 0 12px 12px">
+          <p style="color:#555;line-height:1.6;margin-top:0">
+            En elevs återkommande betalning har misslyckats. Stripe gör automatiskt nya försök under de närmaste dagarna.
+            Om alla försök misslyckas inaktiveras prenumerationen automatiskt.
+          </p>
+          <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:18px;margin:18px 0">
+            <table style="width:100%;font-size:14px">
+              <tr><td style="color:#666;padding:4px 0;width:90px">Elev</td><td style="color:#1A1520;font-weight:600">${studentName}</td></tr>
+              <tr><td style="color:#666;padding:4px 0">E-post</td><td><a href="mailto:${studentEmail}" style="color:#7B3FB0;text-decoration:none">${studentEmail}</a></td></tr>
+              <tr><td style="color:#666;padding:4px 0">Kurs</td><td style="color:#1A1520;font-weight:600">${courseName}</td></tr>
+            </table>
+          </div>
+          <p style="color:#666;font-size:13px;line-height:1.6">
+            Tips: kontakta eleven om problemet kvarstår. Eleven kan uppdatera sitt kort genom att starta en ny betalning från sin elevportal.
+          </p>
+          <p style="color:#999;font-size:12px;text-align:center;margin-top:20px"><strong>Korancenter</strong></p>
+        </div>
+      </div>
+    `,
+  });
+}
+
 export async function sendApprovalEmail({
   toEmail,
   applicantName,

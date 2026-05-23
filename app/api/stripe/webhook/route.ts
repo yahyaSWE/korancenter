@@ -1,27 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendEnrollmentActivatedEmail } from "@/lib/email";
+import {
+  sendEnrollmentActivatedEmail,
+  sendEnrollmentCancelledEmail,
+  sendPaymentFailedEmail,
+} from "@/lib/email";
 import type Stripe from "stripe";
 
-async function notifyTeacherAndAdmin(enrollmentId: string) {
+type NotifyArgs = {
+  studentName: string;
+  studentEmail: string;
+  courseName: string;
+  toEmails: string[];
+};
+
+async function buildRecipients(enrollmentId: string): Promise<NotifyArgs | null> {
   try {
     const admin = createAdminClient();
-    // Hämta enrollment + student + kurs + lärare
     const { data: enrollment } = await admin
       .from("enrollments")
       .select("id, student:profiles!student_id(full_name, email), course:courses!course_id(title, teacher_id)")
       .eq("id", enrollmentId)
       .single();
-
-    if (!enrollment) return;
+    if (!enrollment) return null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const student = (enrollment as any).student as { full_name: string | null; email: string | null } | null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const course = (enrollment as any).course as { title: string; teacher_id: string | null } | null;
-    if (!student || !course) return;
+    if (!student || !course) return null;
 
-    // Hämta lärarens e-post + alla admins
     const recipients = new Set<string>();
     if (course.teacher_id) {
       const { data: teacher } = await admin.from("profiles").select("email").eq("id", course.teacher_id).single();
@@ -32,17 +40,52 @@ async function notifyTeacherAndAdmin(enrollmentId: string) {
       if (a.email) recipients.add(a.email);
     }
 
-    if (recipients.size === 0) return;
+    if (recipients.size === 0) return null;
 
-    await sendEnrollmentActivatedEmail({
+    return {
       toEmails: Array.from(recipients),
       studentName: student.full_name ?? student.email ?? "Okänd elev",
       studentEmail: student.email ?? "",
       courseName: course.title,
-    });
+    };
   } catch (e) {
-    console.error("[stripe-webhook] notifyTeacherAndAdmin error:", e);
+    console.error("[stripe-webhook] buildRecipients error:", e);
+    return null;
   }
+}
+
+async function notifyTeacherAndAdmin(enrollmentId: string) {
+  const args = await buildRecipients(enrollmentId);
+  if (!args) return;
+  await sendEnrollmentActivatedEmail(args).catch((e) =>
+    console.error("[stripe-webhook] activated email error:", e),
+  );
+}
+
+async function notifyCancellation(enrollmentId: string, endsAt: string | null) {
+  const args = await buildRecipients(enrollmentId);
+  if (!args) return;
+  await sendEnrollmentCancelledEmail({ ...args, endsAt }).catch((e) =>
+    console.error("[stripe-webhook] cancelled email error:", e),
+  );
+}
+
+async function notifyPaymentFailed(enrollmentId: string) {
+  const args = await buildRecipients(enrollmentId);
+  if (!args) return;
+  await sendPaymentFailedEmail(args).catch((e) =>
+    console.error("[stripe-webhook] failed email error:", e),
+  );
+}
+
+async function findEnrollmentIdBySubscription(subscriptionId: string): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("enrollments")
+    .select("id")
+    .eq("stripe_subscription_id", subscriptionId)
+    .maybeSingle();
+  return data?.id ?? null;
 }
 
 function periodEnd(sub: Stripe.Subscription): string {
@@ -131,24 +174,42 @@ export async function POST(req: NextRequest) {
       await admin.from("enrollments").update({
         subscription_status: "past_due",
       }).eq("stripe_subscription_id", invoice.subscription);
+
+      const enrollmentId = await findEnrollmentIdBySubscription(invoice.subscription);
+      if (enrollmentId) await notifyPaymentFailed(enrollmentId);
       break;
     }
 
     case "customer.subscription.updated": {
       const sub = event.data.object as Stripe.Subscription;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const prev = (event.data as any).previous_attributes as { cancel_at_period_end?: boolean } | undefined;
       await admin.from("enrollments").update({
         subscription_status: sub.cancel_at_period_end ? "cancel_at_period_end" : sub.status,
         current_period_end: periodEnd(sub),
       }).eq("stripe_subscription_id", sub.id);
+
+      // Notifiera bara om eleven precis sa upp (gick från false → true)
+      if (sub.cancel_at_period_end === true && prev?.cancel_at_period_end === false) {
+        const enrollmentId = await findEnrollmentIdBySubscription(sub.id);
+        if (enrollmentId) await notifyCancellation(enrollmentId, periodEnd(sub));
+      }
       break;
     }
 
     case "customer.subscription.deleted": {
       const sub = event.data.object as Stripe.Subscription;
+      const enrollmentId = await findEnrollmentIdBySubscription(sub.id);
       await admin.from("enrollments").update({
         payment_status: "cancelled",
         subscription_status: "canceled",
       }).eq("stripe_subscription_id", sub.id);
+
+      // Notifiera om det INTE redan notifierades via cancel_at_period_end
+      // (om eleven sa upp tidigare har de redan fått besked)
+      if (enrollmentId && !sub.cancel_at_period_end) {
+        await notifyCancellation(enrollmentId, null);
+      }
       break;
     }
     }
