@@ -25,21 +25,26 @@ export default async function PortalDashboard() {
   const activeEnrollments = enrollments ?? [];
   const courseIds = activeEnrollments.map((e) => e.course_id);
 
-  // Hämta lärarens anteckningar (läxa + senaste lektion) för elevens aktiva kurser
+  // Hämta lärarens senaste anteckning (läxa + vad ni gjorde) per kurs.
+  // Interna anteckningar (notes) hämtas INTE — de är endast för läraren.
   const adminClient = createAdminClient();
-  const { data: progressRows } = courseIds.length > 0
+  const { data: noteRows } = courseIds.length > 0
     ? await adminClient
-        .from("student_progress")
-        .select("course_id, homework, last_lesson_summary, updated_at")
+        .from("lesson_notes")
+        .select("course_id, homework, summary, lesson_date")
         .eq("student_id", user.id)
         .in("course_id", courseIds)
+        .order("lesson_date", { ascending: false })
+        .order("created_at", { ascending: false })
     : { data: [] };
+  // Behåll bara senaste posten per kurs (raderna kommer redan sorterade nyast först)
   const progressByCourse = new Map<string, { homework: string | null; last_lesson_summary: string | null; updated_at: string }>();
-  for (const p of progressRows ?? []) {
+  for (const p of noteRows ?? []) {
+    if (progressByCourse.has(p.course_id)) continue;
     progressByCourse.set(p.course_id, {
       homework: p.homework,
-      last_lesson_summary: p.last_lesson_summary,
-      updated_at: p.updated_at,
+      last_lesson_summary: p.summary,
+      updated_at: p.lesson_date,
     });
   }
 

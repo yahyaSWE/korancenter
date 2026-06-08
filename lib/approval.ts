@@ -49,7 +49,19 @@ export async function runApprovalFlow({
   if (updateErr) return { error: updateErr.message };
 
   const course = application.course as { id: string; title: string; stripe_price_id: string | null; is_subscription: boolean } | null;
-  const redirectName = (application.redirect_course as { title?: string } | null)?.title;
+
+  // Slå upp namnet på hänvisningskursen FÄRSKT (den joinade redirect_course
+  // är stale eftersom redirect_course_id precis sattes i denna request)
+  let redirectName: string | undefined =
+    (application.redirect_course as { title?: string } | null)?.title;
+  if (status === "redirected" && redirectCourseId) {
+    const { data: rc } = await admin
+      .from("courses")
+      .select("title")
+      .eq("id", redirectCourseId)
+      .maybeSingle();
+    redirectName = rc?.title ?? redirectName;
+  }
 
   // Godkännande: skapa konto + enrollment + Stripe checkout + nytt välkomstmejl
   if (status === "approved" && course?.id) {
