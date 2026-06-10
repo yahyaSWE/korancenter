@@ -43,10 +43,11 @@ export default function LarareAnsokningar() {
   useEffect(() => {
     Promise.all([
       fetch("/api/teacher/applications").then((r) => r.json()),
-      fetch("/api/admin/courses").then((r) => r.json()),
+      // Publik kurslista (alla aktiva kurser) — /api/admin/courses kräver admin-roll
+      fetch("/api/courses").then((r) => r.json()),
     ]).then(([apps, c]) => {
       if (!apps.error) setApplications(apps);
-      if (!c.error) setCourses(c);
+      if (Array.isArray(c)) setCourses(c);
       setLoading(false);
     });
   }, []);
