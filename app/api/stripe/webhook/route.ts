@@ -80,11 +80,12 @@ async function notifyPaymentFailed(enrollmentId: string) {
 
 async function findEnrollmentIdBySubscription(subscriptionId: string): Promise<string | null> {
   const admin = createAdminClient();
-  const { data } = await admin
+  const { data, error } = await admin
     .from("enrollments")
     .select("id")
     .eq("stripe_subscription_id", subscriptionId)
     .maybeSingle();
+  if (error) throw new Error(`Kunde inte hitta kursplats för prenumeration: ${error.message}`);
   return data?.id ?? null;
 }
 
@@ -92,6 +93,48 @@ function periodEnd(sub: Stripe.Subscription): string {
   // SDK v17+: current_period_end lives on the SubscriptionItem, not the Subscription
   const end = sub.items?.data?.[0]?.current_period_end;
   return new Date((end ?? 0) * 1000).toISOString();
+}
+
+async function activateCheckoutSession(session: Stripe.Checkout.Session) {
+  const enrollmentId = session.metadata?.enrollment_id;
+  if (!enrollmentId) throw new Error("Stripe-sessionen saknar enrollment_id");
+
+  // För fördröjda betalningsmetoder inväntar vi async_payment_succeeded.
+  if (session.payment_status === "unpaid") return;
+
+  const admin = createAdminClient();
+  const { data: prior, error: priorError } = await admin
+    .from("enrollments")
+    .select("payment_status")
+    .eq("id", enrollmentId)
+    .single();
+  if (priorError || !prior) {
+    throw new Error(`Kunde inte hitta kursplatsen: ${priorError?.message ?? enrollmentId}`);
+  }
+  const wasAlreadyPaid = prior.payment_status === "paid";
+
+  if (session.mode === "subscription") {
+    if (!session.subscription) throw new Error("Stripe-sessionen saknar subscription-id");
+    const sub = await getStripe().subscriptions.retrieve(session.subscription as string);
+    const { error: updateError } = await admin.from("enrollments").update({
+      payment_status: "paid",
+      stripe_subscription_id: sub.id,
+      stripe_customer_id: session.customer as string,
+      current_period_end: periodEnd(sub),
+      subscription_status: "active",
+    }).eq("id", enrollmentId);
+    if (updateError) throw new Error(`Kunde inte aktivera kursplatsen: ${updateError.message}`);
+  } else if (session.mode === "payment") {
+    const { error: updateError } = await admin.from("enrollments").update({
+      payment_status: "paid",
+      stripe_customer_id: session.customer as string,
+    }).eq("id", enrollmentId);
+    if (updateError) throw new Error(`Kunde inte aktivera kursplatsen: ${updateError.message}`);
+  } else {
+    throw new Error(`Okänt checkout-läge: ${session.mode}`);
+  }
+
+  if (!wasAlreadyPaid) await notifyTeacherAndAdmin(enrollmentId);
 }
 
 export async function POST(req: NextRequest) {
@@ -117,63 +160,41 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const admin = createAdminClient();
-
     switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
-      const enrollmentId = session.metadata?.enrollment_id;
-      if (!enrollmentId) break;
+      await activateCheckoutSession(session);
+      break;
+    }
 
-      // Kolla om enrollmentet redan var betalt – då skippar vi notifikationen
-      const { data: prior } = await admin
-        .from("enrollments")
-        .select("payment_status")
-        .eq("id", enrollmentId)
-        .single();
-      const wasAlreadyPaid = prior?.payment_status === "paid";
-
-      if (session.mode === "subscription" && session.subscription) {
-        const sub = await getStripe().subscriptions.retrieve(session.subscription as string);
-        await admin.from("enrollments").update({
-          payment_status: "paid",
-          stripe_subscription_id: sub.id,
-          stripe_customer_id: session.customer as string,
-          current_period_end: periodEnd(sub),
-          subscription_status: "active",
-        }).eq("id", enrollmentId);
-      } else if (session.mode === "payment") {
-        await admin.from("enrollments").update({
-          payment_status: "paid",
-          stripe_customer_id: session.customer as string,
-        }).eq("id", enrollmentId);
-      }
-
-      // Skicka notis till lärare + admin endast vid första aktiveringen
-      if (!wasAlreadyPaid) {
-        await notifyTeacherAndAdmin(enrollmentId);
-      }
+    case "checkout.session.async_payment_succeeded": {
+      const session = event.data.object as Stripe.Checkout.Session;
+      await activateCheckoutSession(session);
       break;
     }
 
     case "invoice.payment_succeeded": {
+      const admin = createAdminClient();
       const invoice = event.data.object as Stripe.Invoice & { subscription?: string | null };
       if (!invoice.subscription) break;
       const sub = await getStripe().subscriptions.retrieve(invoice.subscription);
-      await admin.from("enrollments").update({
+      const { error: updateError } = await admin.from("enrollments").update({
         payment_status: "paid",
         current_period_end: periodEnd(sub),
         subscription_status: sub.cancel_at_period_end ? "cancel_at_period_end" : "active",
       }).eq("stripe_subscription_id", invoice.subscription);
+      if (updateError) throw new Error(`Kunde inte registrera betalningen: ${updateError.message}`);
       break;
     }
 
     case "invoice.payment_failed": {
+      const admin = createAdminClient();
       const invoice = event.data.object as Stripe.Invoice & { subscription?: string | null };
       if (!invoice.subscription) break;
-      await admin.from("enrollments").update({
+      const { error: updateError } = await admin.from("enrollments").update({
         subscription_status: "past_due",
       }).eq("stripe_subscription_id", invoice.subscription);
+      if (updateError) throw new Error(`Kunde inte registrera misslyckad betalning: ${updateError.message}`);
 
       const enrollmentId = await findEnrollmentIdBySubscription(invoice.subscription);
       if (enrollmentId) await notifyPaymentFailed(enrollmentId);
@@ -181,13 +202,15 @@ export async function POST(req: NextRequest) {
     }
 
     case "customer.subscription.updated": {
+      const admin = createAdminClient();
       const sub = event.data.object as Stripe.Subscription;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const prev = (event.data as any).previous_attributes as { cancel_at_period_end?: boolean } | undefined;
-      await admin.from("enrollments").update({
+      const { error: updateError } = await admin.from("enrollments").update({
         subscription_status: sub.cancel_at_period_end ? "cancel_at_period_end" : sub.status,
         current_period_end: periodEnd(sub),
       }).eq("stripe_subscription_id", sub.id);
+      if (updateError) throw new Error(`Kunde inte uppdatera prenumerationen: ${updateError.message}`);
 
       // Notifiera bara om eleven precis sa upp (gick från false → true)
       if (sub.cancel_at_period_end === true && prev?.cancel_at_period_end === false) {
@@ -198,12 +221,14 @@ export async function POST(req: NextRequest) {
     }
 
     case "customer.subscription.deleted": {
+      const admin = createAdminClient();
       const sub = event.data.object as Stripe.Subscription;
       const enrollmentId = await findEnrollmentIdBySubscription(sub.id);
-      await admin.from("enrollments").update({
+      const { error: updateError } = await admin.from("enrollments").update({
         payment_status: "cancelled",
         subscription_status: "canceled",
       }).eq("stripe_subscription_id", sub.id);
+      if (updateError) throw new Error(`Kunde inte avsluta kursplatsen: ${updateError.message}`);
 
       // Notifiera om det INTE redan notifierades via cancel_at_period_end
       // (om eleven sa upp tidigare har de redan fått besked)

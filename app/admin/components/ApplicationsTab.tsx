@@ -85,7 +85,7 @@ export function ApplicationsTab({
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_LABELS[app.status]?.color ?? ""}`}>
                         {STATUS_LABELS[app.status]?.label ?? app.status}
                       </span>
-                      {app.status === "approved" && app.payment_status && (
+                      {app.status === "approved" && (
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                           app.payment_status === "paid"
                             ? "bg-green-50 text-green-600"
@@ -93,12 +93,15 @@ export function ApplicationsTab({
                             ? "bg-amber-50 text-amber-600"
                             : app.payment_status === "cancelled"
                             ? "bg-gray-100 text-gray-500"
-                            : "bg-gray-100 text-gray-500"
+                            : app.payment_status
+                            ? "bg-gray-100 text-gray-500"
+                            : "bg-red-50 text-red-600"
                         }`}>
                           {app.payment_status === "paid" && "✓ Betald"}
                           {app.payment_status === "pending" && "⏳ Väntar på betalning"}
                           {app.payment_status === "cancelled" && "Avbruten"}
                           {app.payment_status === "refunded" && "Återbetald"}
+                          {!app.payment_status && "⚠ Saknar kursplats"}
                         </span>
                       )}
                     </div>

@@ -9,7 +9,7 @@ type Props = {
   onDelete: (id: string, url: string | null) => void;
 };
 
-export function MaterialTab({ materials, courses, onUpload, onDelete }: Props) {
+export function MaterialTab({ materials, onUpload, onDelete }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">

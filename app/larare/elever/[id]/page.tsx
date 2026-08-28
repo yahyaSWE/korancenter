@@ -61,6 +61,8 @@ export default function ElevDetalj() {
     setLoading(false);
   }, [studentId]);
 
+  // Datahämtning vid montering är avsiktlig för den klientrenderade elevvyn.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   const student = enrollments[0]?.student ?? null;

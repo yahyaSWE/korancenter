@@ -19,6 +19,9 @@ export async function POST(req: NextRequest) {
   if (error) return error;
 
   const body = await req.json();
+  if (!body.stripe_price_id?.trim()) {
+    return NextResponse.json({ error: "Stripe Pris-ID krävs för att kursen ska kunna ta emot ansökningar" }, { status: 400 });
+  }
   const { data, error: err } = await supabase!
     .from("courses")
     .insert({
@@ -49,6 +52,9 @@ export async function PUT(req: NextRequest) {
 
   const body = await req.json();
   const { id, ...rest } = body;
+  if (rest.is_active !== false && !rest.stripe_price_id?.trim()) {
+    return NextResponse.json({ error: "Stripe Pris-ID krävs för en aktiv kurs" }, { status: 400 });
+  }
 
   const { data, error: err } = await supabase!
     .from("courses")

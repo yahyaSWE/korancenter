@@ -35,7 +35,7 @@ export async function sendNewApplicationEmail({
         <p>Hej ${toName},</p>
         <p><strong>${applicantName}</strong> (${applicantEmail}) har ansökt till kursen <strong>${courseName}</strong>.</p>
         <p>Logga in på din portal för att granska ansökan.</p>
-        <a href="${process.env.NEXT_PUBLIC_URL ?? "https://korancenter.se"}/larare/ansokningar"
+        <a href="${process.env.NEXT_PUBLIC_SITE_URL ?? "https://korancenter.se"}/larare/ansokningar"
            style="display:inline-block;margin-top:12px;padding:10px 20px;background:#7B3FB0;color:white;border-radius:8px;text-decoration:none;font-weight:600">
           Granska ansökan
         </a>
@@ -253,7 +253,7 @@ export async function sendApprovalEmail({
   passwordSetupLink: string | null;
 }) {
   const resend = getResend();
-  if (!resend) return;
+  if (!resend) throw new Error("RESEND_API_KEY saknas");
 
   const stepCount = (checkoutUrl ? 1 : 0) + (passwordSetupLink ? 1 : 0);
   let stepIdx = 0;
@@ -292,7 +292,7 @@ export async function sendApprovalEmail({
     ? "Sätt ditt lösenord så du kommer åt din elevportal:"
     : "Vi kontaktar dig snart med nästa steg.";
 
-  await resend.emails.send({
+  const { error } = await resend.emails.send({
     from: FROM,
     to: toEmail,
     subject: `Din ansökan till ${courseName} är godkänd!`,
@@ -317,6 +317,7 @@ export async function sendApprovalEmail({
       </div>
     `,
   });
+  if (error) throw new Error(`Kunde inte skicka godkännandemejl: ${error.message}`);
 }
 
 export async function sendApplicationStatusEmail({
@@ -335,7 +336,7 @@ export async function sendApplicationStatusEmail({
   notes?: string;
 }) {
   const resend = getResend();
-  if (!resend) return;
+  if (!resend) throw new Error("RESEND_API_KEY saknas");
 
   const subjects: Record<string, string> = {
     approved: `Grattis! Din ansökan till ${courseName} har godkänts`,
@@ -346,10 +347,10 @@ export async function sendApplicationStatusEmail({
   const messages: Record<string, string> = {
     approved: `Vi är glada att meddela att din ansökan till <strong>${courseName}</strong> har <strong>godkänts</strong>! Vi kontaktar dig snart med betalningsinformation (3 månader i förväg) och uppstartsdetaljer.`,
     rejected: `Tyvärr kan vi inte ta emot din ansökan till <strong>${courseName}</strong> just nu.`,
-    redirected: `Efter att ha granskat din ansökan till <strong>${courseName}</strong> rekommenderar vi att du börjar med <strong>${redirectCourseName ?? "en annan kurs"}</strong> som passar din nuvarande nivå bättre.`,
+    redirected: `Efter att ha granskat din ansökan till <strong>${courseName}</strong> har vi flyttat den vidare till <strong>${redirectCourseName ?? "en annan kurs"}</strong> som passar din nuvarande nivå bättre. Du behöver inte ansöka igen. Den nya kursens lärare granskar nu ansökan och du får ett separat besked med betalningslänk när den godkänns.`,
   };
 
-  await resend.emails.send({
+  const { error } = await resend.emails.send({
     from: FROM,
     to: toEmail,
     subject: subjects[status],
@@ -363,4 +364,5 @@ export async function sendApplicationStatusEmail({
       </div>
     `,
   });
+  if (error) throw new Error(`Kunde inte skicka statusmejl: ${error.message}`);
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import type { Profile, Course } from "@/lib/supabase/types";
 import type { Tab, ApplicationRow, WaitlistRow, EnrollmentRow, MessageRow, MaterialRow, DaySchedule, LessonRow } from "./components/types";
 import { inputCls, btnPrimary, btnSecondary } from "./components/types";
@@ -96,6 +97,8 @@ export default function AdminPanel() {
     if (!apps.error) setApplications(apps);
   }, []);
 
+  // Datahämtning vid montering är avsiktlig för den klientrenderade adminpanelen.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   const toast = (msg: string) => { setFeedback(msg); setTimeout(() => setFeedback(""), 3500); };
@@ -116,9 +119,10 @@ export default function AdminPanel() {
     const method = editCourse ? "PUT" : "POST";
     const body = editCourse ? { id: editCourse.id, ...courseForm } : courseForm;
     const res = await fetch("/api/admin/courses", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await res.json();
     setSaving(false);
     if (res.ok) { setShowCourseModal(false); load(); toast(editCourse ? "Kurs uppdaterad!" : "Kurs skapad!"); }
-    else toast("Något gick fel.");
+    else toast(data.error ?? "Något gick fel.");
   };
   const deleteCourse = async (id: string) => {
     if (!confirm("Ta bort kursen?")) return;
@@ -249,12 +253,15 @@ export default function AdminPanel() {
   const resendApplicationEmail = async (app: ApplicationRow) => {
     setResendingAppId(app.id);
     const res = await fetch(`/api/admin/applications/${app.id}/resend`, { method: "POST" });
+    const data = await res.json();
     setResendingAppId(null);
     if (res.ok) {
+      setApplications((prev) => prev.map((item) => item.id === app.id
+        ? { ...item, payment_status: data.payment_status ?? item.payment_status }
+        : item));
       toast(`Mejl skickat till ${app.email}.`);
     } else {
-      const d = await res.json();
-      toast(d.error ?? "Kunde inte skicka mejl.");
+      toast(data.error ?? "Kunde inte skicka mejl.");
     }
   };
 
@@ -266,14 +273,16 @@ export default function AdminPanel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: appReviewing.id, ...appReviewForm }),
     });
+    const data = await res.json();
     setSaving(false);
     if (res.ok) {
-      setApplications((prev) => prev.map((a) => a.id === appReviewing.id ? { ...a, status: appReviewForm.status } : a));
+      setApplications((prev) => prev.map((a) => a.id === appReviewing.id
+        ? { ...a, status: appReviewForm.status, payment_status: data.payment_status ?? a.payment_status }
+        : a));
       setAppReviewing(null);
       toast("Ansökan uppdaterad och sökande notifierad.");
     } else {
-      const d = await res.json();
-      toast(d.error ?? "Något gick fel.");
+      toast(data.error ?? "Något gick fel.");
     }
   };
 
@@ -307,7 +316,7 @@ export default function AdminPanel() {
             <h1 className="text-xl font-bold text-gray-900">Adminpanel</h1>
             <p className="text-xs text-gray-400">Korancenter – hantera elever, kurser och lektioner</p>
           </div>
-          <a href="/" className="text-sm text-gray-500 hover:text-gray-700">← Tillbaka till hemsidan</a>
+          <Link href="/" className="text-sm text-gray-500 hover:text-gray-700">← Tillbaka till hemsidan</Link>
         </div>
       </div>
 
@@ -444,6 +453,7 @@ export default function AdminPanel() {
                   value={courseForm.stripe_price_id}
                   onChange={(e) => setCourseForm({ ...courseForm, stripe_price_id: e.target.value })}
                   placeholder="price_xxxxxxxxxxxxxxxxxx"
+                  required
                 />
                 <p className="text-xs text-gray-400 mt-1">Hittas i Stripe Dashboard → Products → ditt pris</p>
               </Field>
@@ -532,7 +542,7 @@ export default function AdminPanel() {
             <Field label="Fullständigt namn"><input className={inputCls} value={studentForm.full_name} onChange={(e) => setStudentForm({ ...studentForm, full_name: e.target.value })} placeholder="Fatima Svensson" /></Field>
             <Field label="E-postadress *"><input className={inputCls} type="email" value={studentForm.email} onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })} placeholder="fatima@example.com" /></Field>
             <Field label="Tillfälligt lösenord *"><input className={inputCls} type="password" value={studentForm.password} onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })} placeholder="Minst 6 tecken" /></Field>
-            <p className="text-xs text-gray-400">Eleven kan byta lösenord via "Glömt lösenord" på inloggningssidan.</p>
+            <p className="text-xs text-gray-400">Eleven kan byta lösenord via &quot;Glömt lösenord&quot; på inloggningssidan.</p>
             <div className="flex gap-2 pt-2">
               <button onClick={saveStudent} disabled={saving} className={`flex-1 ${btnPrimary}`} style={{ backgroundColor: "#7B3FB0" }}>{saving ? "Skapar..." : "Skapa elev"}</button>
               <button onClick={() => setShowStudentModal(false)} className={btnSecondary}>Avbryt</button>

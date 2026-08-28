@@ -94,7 +94,7 @@ export default function Integritetspolicy() {
                 <ul className="list-disc pl-6 mt-3 space-y-2">
                   <li>Få tillgång till de uppgifter vi behandlar om dig</li>
                   <li>Begära rättelse av felaktiga uppgifter</li>
-                  <li>Begära radering av dina uppgifter ("rätten att bli glömd")</li>
+                  <li>Begära radering av dina uppgifter (&quot;rätten att bli glömd&quot;)</li>
                   <li>Begära begränsning av behandlingen</li>
                   <li>Invända mot behandling</li>
                   <li>Dataportabilitet</li>

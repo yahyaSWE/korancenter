@@ -18,6 +18,7 @@ type Application = {
   created_at: string;
   course: { id: string; title: string } | null;
   redirect_course: { id: string; title: string } | null;
+  payment_status?: "paid" | "pending" | "cancelled" | "refunded" | null;
 };
 
 type Course = { id: string; title: string };
@@ -38,6 +39,7 @@ export default function LarareAnsokningar() {
   const [reviewing, setReviewing]       = useState<Application | null>(null);
   const [reviewForm, setReviewForm]     = useState({ status: "approved", redirect_course_id: "", admin_notes: "" });
   const [saving, setSaving]             = useState(false);
+  const [resendingId, setResendingId]   = useState<string | null>(null);
   const [toast, setToast]               = useState("");
 
   useEffect(() => {
@@ -70,12 +72,29 @@ export default function LarareAnsokningar() {
     const data = await res.json();
     setSaving(false);
     if (res.ok) {
-      setApplications((prev) => prev.map((a) => a.id === reviewing.id ? { ...a, status: reviewForm.status } : a));
+      setApplications((prev) => prev.map((a) => a.id === reviewing.id
+        ? { ...a, status: reviewForm.status, payment_status: data.payment_status ?? a.payment_status }
+        : a));
       setReviewing(null);
       showToast("Ansökan uppdaterad och sökande notifierad via e-post.");
     } else {
       showToast(data.error ?? "Något gick fel.");
     }
+  };
+
+  const resendApproval = async (application: Application) => {
+    setResendingId(application.id);
+    const res = await fetch(`/api/teacher/applications/${application.id}/resend`, { method: "POST" });
+    const data = await res.json();
+    setResendingId(null);
+    if (!res.ok) {
+      showToast(data.error ?? "Kunde inte skicka betalningslänken.");
+      return;
+    }
+    setApplications((prev) => prev.map((item) => item.id === application.id
+      ? { ...item, payment_status: data.payment_status ?? item.payment_status }
+      : item));
+    showToast(`Ny betalnings- och lösenordslänk skickad till ${application.email}.`);
   };
 
   const filtered = applications.filter((a) => filter === "all" || a.status === filter);
@@ -136,6 +155,21 @@ export default function LarareAnsokningar() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                {app.status === "approved" && (
+                  <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                    app.payment_status === "paid"
+                      ? "bg-green-50 text-green-600"
+                      : app.payment_status === "pending"
+                        ? "bg-amber-50 text-amber-600"
+                        : "bg-red-50 text-red-600"
+                  }`}>
+                    {app.payment_status === "paid"
+                      ? "✓ Betald"
+                      : app.payment_status === "pending"
+                        ? "⏳ Väntar på betalning"
+                        : "⚠ Saknar kursplats"}
+                  </span>
+                )}
                 <span className={`text-xs font-semibold px-3 py-1 rounded-full ${STATUS_LABELS[app.status]?.color ?? ""}`}>
                   {STATUS_LABELS[app.status]?.label ?? app.status}
                 </span>
@@ -173,6 +207,18 @@ export default function LarareAnsokningar() {
                       className="px-5 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90"
                       style={{ backgroundColor: "#7B3FB0" }}>
                       Granska ansökan
+                    </button>
+                  </div>
+                )}
+                {app.status === "approved" && app.payment_status !== "paid" && (
+                  <div className="pt-2">
+                    <button
+                      onClick={() => resendApproval(app)}
+                      disabled={resendingId === app.id}
+                      className="px-5 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                      style={{ backgroundColor: "#7B3FB0" }}
+                    >
+                      {resendingId === app.id ? "Skickar..." : "Skicka betalningslänk igen"}
                     </button>
                   </div>
                 )}

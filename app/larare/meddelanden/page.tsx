@@ -107,7 +107,6 @@ export default function LarareMeddelanden() {
         fetch("/api/teacher/students").then((r) => r.json()),
       ]);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (!enrollments.error && Array.isArray(enrollments)) {
         const map = new Map<string, Person>();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

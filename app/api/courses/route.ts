@@ -9,7 +9,11 @@ export async function GET() {
   const admin = createAdminClient();
 
   const [{ data: courses }, { data: enrollments }] = await Promise.all([
-    admin.from("courses").select("*").eq("is_active", true).order("price_sek", { ascending: true }),
+    admin
+      .from("courses")
+      .select("id, title, description, level, price_sek, duration_weeks, sessions_per_week, max_participants, weekly_schedule")
+      .eq("is_active", true)
+      .order("price_sek", { ascending: true }),
     admin.from("enrollments").select("course_id").eq("payment_status", "paid"),
   ]);
 

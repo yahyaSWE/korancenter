@@ -29,7 +29,7 @@ export function TeachersTab({ students, courses, onMessage, onChangeRole, onDele
             </thead>
             <tbody className="divide-y divide-gray-50">
               {teachers.length === 0 ? (
-                <tr><td colSpan={3} className="px-6 py-10 text-center text-gray-400 text-sm">Inga lärare ännu. Gå till Elever-fliken och klicka "→ Lärare" på en användare.</td></tr>
+                <tr><td colSpan={3} className="px-6 py-10 text-center text-gray-400 text-sm">Inga lärare ännu. Gå till Elever-fliken och klicka &quot;→ Lärare&quot; på en användare.</td></tr>
               ) : teachers.map((t) => {
                 const teacherCourses = courses.filter((c) => c.teacher_id === t.id);
                 return (

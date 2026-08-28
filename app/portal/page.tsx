@@ -99,9 +99,8 @@ export default async function PortalDashboard() {
       4,
     );
   });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const upcomingLessons = [...(dbLessons ?? []), ...virtualLessons]
-    .sort((a: any, b: any) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
     .slice(0, 4);
 
   return (
