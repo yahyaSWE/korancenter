@@ -9,7 +9,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   redirected: { label: "Hänvisad", color: "bg-blue-50 text-blue-600" },
 };
 
-type ReviewForm = { status: string; redirect_course_id: string; admin_notes: string };
+type ReviewForm = { status: string; redirect_course_id: string; admin_notes: string; expand_capacity: boolean };
 
 type Props = {
   applications: ApplicationRow[];
@@ -34,6 +34,13 @@ export function ApplicationsTab({
 }: Props) {
   const filtered = applications.filter((a) => appFilter === "all" || a.status === appFilter);
   const pendingCount = applications.filter((a) => a.status === "pending").length;
+  const decisionCourseId = appReviewForm.status === "redirected"
+    ? appReviewForm.redirect_course_id
+    : appReviewing?.course_id;
+  const decisionCourse = courses.find((course) => course.id === decisionCourseId);
+  const decisionEnrolled = decisionCourse?.enrolled_count ?? 0;
+  const decisionMax = decisionCourse?.max_participants ?? null;
+  const decisionCourseIsFull = decisionMax !== null && decisionEnrolled >= decisionMax;
 
   return (
     <>
@@ -156,7 +163,7 @@ export function ApplicationsTab({
                 <label className="text-xs font-semibold text-gray-500 block mb-2">Beslut</label>
                 <div className="flex gap-2 flex-wrap">
                   {([["approved","✓ Godkänn","bg-green-50 border-green-300 text-green-700"],["rejected","✗ Neka","bg-red-50 border-red-300 text-red-600"],["redirected","→ Hänvisa","bg-blue-50 border-blue-300 text-blue-600"]] as [string,string,string][]).map(([val, label, cls]) => (
-                    <button key={val} onClick={() => onReviewFormChange({ ...appReviewForm, status: val })}
+                    <button key={val} onClick={() => onReviewFormChange({ ...appReviewForm, status: val, expand_capacity: false })}
                       className={`px-3 py-1.5 rounded-lg border text-sm font-medium ${appReviewForm.status === val ? cls + " border-2" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
                       {label}
                     </button>
@@ -167,13 +174,29 @@ export function ApplicationsTab({
                 <div>
                   <label className="text-xs font-semibold text-gray-500 block mb-1">Hänvisa till kurs</label>
                   <select value={appReviewForm.redirect_course_id}
-                    onChange={(e) => onReviewFormChange({ ...appReviewForm, redirect_course_id: e.target.value })}
+                    onChange={(e) => onReviewFormChange({ ...appReviewForm, redirect_course_id: e.target.value, expand_capacity: false })}
                     className={inputCls}>
                     <option value="">Välj kurs...</option>
                     {courses.filter((c) => c.id !== appReviewing.course_id).map((c) => (
-                      <option key={c.id} value={c.id}>{c.title}</option>
+                      <option key={c.id} value={c.id}>
+                        {c.title}{c.max_participants !== null && (c.enrolled_count ?? 0) >= c.max_participants ? " (full)" : ""}
+                      </option>
                     ))}
                   </select>
+                </div>
+              )}
+              {decisionCourseIsFull && (appReviewForm.status === "approved" || appReviewForm.status === "redirected") && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-semibold text-amber-900">Kursen är full ({decisionEnrolled}/{decisionMax} platser).</p>
+                  <label className="mt-3 flex cursor-pointer items-start gap-3 text-sm text-amber-900">
+                    <input
+                      type="checkbox"
+                      checked={appReviewForm.expand_capacity}
+                      onChange={(e) => onReviewFormChange({ ...appReviewForm, expand_capacity: e.target.checked })}
+                      className="mt-0.5 h-4 w-4 rounded border-amber-400 accent-[#7B3FB0]"
+                    />
+                    <span>Utöka kursens kapacitet med 1 plats för den här eleven.</span>
+                  </label>
                 </div>
               )}
               <div>
@@ -187,7 +210,7 @@ export function ApplicationsTab({
               <div className="flex gap-3">
                 <button onClick={onCancelReview} className={btnSecondary + " flex-1"}>Avbryt</button>
                 <button
-                  disabled={saving || (appReviewForm.status === "redirected" && !appReviewForm.redirect_course_id)}
+                  disabled={saving || (appReviewForm.status === "redirected" && !appReviewForm.redirect_course_id) || (decisionCourseIsFull && !appReviewForm.expand_capacity)}
                   onClick={onSubmitReview}
                   className={btnPrimary + " flex-1 disabled:opacity-50"}
                   style={{ backgroundColor: "#7B3FB0" }}>

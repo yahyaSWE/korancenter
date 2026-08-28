@@ -54,7 +54,7 @@ export default function AdminPanel() {
   const [applications, setApplications] = useState<ApplicationRow[]>([]);
   const [appFilter, setAppFilter] = useState("pending");
   const [appReviewing, setAppReviewing] = useState<ApplicationRow | null>(null);
-  const [appReviewForm, setAppReviewForm] = useState({ status: "approved", redirect_course_id: "", admin_notes: "" });
+  const [appReviewForm, setAppReviewForm] = useState({ status: "approved", redirect_course_id: "", admin_notes: "", expand_capacity: false });
 
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [showMaterialModal, setShowMaterialModal] = useState(false);
@@ -276,11 +276,21 @@ export default function AdminPanel() {
     const data = await res.json();
     setSaving(false);
     if (res.ok) {
+      const affectedCourseId = appReviewForm.status === "redirected"
+        ? appReviewForm.redirect_course_id
+        : appReviewing.course_id;
       setApplications((prev) => prev.map((a) => a.id === appReviewing.id
         ? { ...a, status: appReviewForm.status, payment_status: data.payment_status ?? a.payment_status }
         : a));
+      if (data.capacity_expanded && typeof data.new_capacity === "number") {
+        setCourses((prev) => prev.map((course) => course.id === affectedCourseId
+          ? { ...course, max_participants: data.new_capacity }
+          : course));
+      }
       setAppReviewing(null);
-      toast("Ansökan uppdaterad och sökande notifierad.");
+      toast(data.capacity_expanded
+        ? `Ansökan uppdaterad, kapaciteten utökad till ${data.new_capacity} och sökande notifierad.`
+        : "Ansökan uppdaterad och sökande notifierad.");
     } else {
       toast(data.error ?? "Något gick fel.");
     }
@@ -355,7 +365,7 @@ export default function AdminPanel() {
           <WaitlistTab waitlist={waitlist} onDelete={deleteWaitlist} />
         )}
         {tab === "applications" && (
-          <ApplicationsTab applications={applications} courses={courses} appFilter={appFilter} onFilterChange={setAppFilter} appReviewing={appReviewing} appReviewForm={appReviewForm} onReviewFormChange={setAppReviewForm} onStartReview={(app) => { setAppReviewing(app); setAppReviewForm({ status: "approved", redirect_course_id: "", admin_notes: "" }); }} onCancelReview={() => setAppReviewing(null)} onSubmitReview={submitReview} onResendEmail={resendApplicationEmail} resendingId={resendingAppId} saving={saving} />
+          <ApplicationsTab applications={applications} courses={courses} appFilter={appFilter} onFilterChange={setAppFilter} appReviewing={appReviewing} appReviewForm={appReviewForm} onReviewFormChange={setAppReviewForm} onStartReview={(app) => { setAppReviewing(app); setAppReviewForm({ status: "approved", redirect_course_id: "", admin_notes: "", expand_capacity: false }); }} onCancelReview={() => setAppReviewing(null)} onSubmitReview={submitReview} onResendEmail={resendApplicationEmail} resendingId={resendingAppId} saving={saving} />
         )}
       </div>
 

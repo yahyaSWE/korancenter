@@ -14,6 +14,7 @@ class FakeQuery {
   private filters: Filter[] = [];
   private payload: Row | null = null;
   private maxRows: number | null = null;
+  private countOnly = false;
 
   constructor(
     private table: string,
@@ -21,7 +22,11 @@ class FakeQuery {
     private log: string[],
   ) {}
 
-  select() { return this; }
+  select(...args: unknown[]) {
+    const options = args[1] as { head?: boolean } | undefined;
+    this.countOnly = options?.head === true;
+    return this;
+  }
   insert(payload: Row) { this.action = "insert"; this.payload = payload; return this; }
   update(payload: Row) { this.action = "update"; this.payload = payload; return this; }
   eq(column: string, value: unknown) { this.filters.push({ kind: "eq", column, value }); return this; }
@@ -47,8 +52,10 @@ class FakeQuery {
     if (this.action === "update") {
       for (const row of matched) Object.assign(row, this.payload);
       this.log.push(`db:${this.table}:update:${String(this.payload?.status ?? this.payload?.payment_status ?? "")}`);
-      return { data: null, error: null };
+      return { data: single ? matched[0] ?? null : null, error: null };
     }
+
+    if (this.countOnly) return { data: null, error: null, count: matched.length };
 
     const selected = this.maxRows === null ? matched : matched.slice(0, this.maxRows);
     if (single) {
@@ -138,6 +145,7 @@ describe("runApprovalFlow", () => {
   it("skapar enrollment och betalningslänk innan ansökan blir godkänd", async () => {
     const tables: Tables = {
       applications: [{ id: "app-1", status: "pending" }],
+      courses: [{ id: "course-1", title: "Nybörjarkurs", max_participants: 10 }],
       profiles: [{ id: "student-1", email: "elev@example.com" }],
       enrollments: [],
     };
@@ -164,6 +172,7 @@ describe("runApprovalFlow", () => {
   it("lämnar ansökan väntande om Stripe Pris-ID saknas", async () => {
     const tables: Tables = {
       applications: [{ id: "app-1", status: "pending" }],
+      courses: [{ id: "course-1", title: "Nybörjarkurs", max_participants: 10 }],
       profiles: [{ id: "student-1", email: "elev@example.com" }],
       enrollments: [],
     };
@@ -183,6 +192,7 @@ describe("runApprovalFlow", () => {
   it("lämnar ansökan väntande om godkännandemejlet misslyckas", async () => {
     const tables: Tables = {
       applications: [{ id: "app-1", status: "pending" }],
+      courses: [{ id: "course-1", title: "Nybörjarkurs", max_participants: 10 }],
       profiles: [{ id: "student-1", email: "elev@example.com" }],
       enrollments: [],
     };
@@ -201,6 +211,7 @@ describe("runApprovalFlow", () => {
   it("återanvänder en redan betald kursplats utan ny Stripe-session", async () => {
     const tables: Tables = {
       applications: [{ id: "app-1", status: "pending" }],
+      courses: [{ id: "course-1", title: "Nybörjarkurs", max_participants: 10 }],
       profiles: [{ id: "student-1", email: "elev@example.com" }],
       enrollments: [{ id: "enrollment-1", student_id: "student-1", course_id: "course-1", payment_status: "paid" }],
     };
@@ -224,6 +235,7 @@ describe("runApprovalFlow", () => {
       courses: [{
         id: "course-2",
         title: "Grundkurs",
+        max_participants: 10,
         is_active: true,
         teacher_id: "teacher-2",
         teacher: { full_name: "Lärare Två", email: "teacher@example.com" },
@@ -249,5 +261,91 @@ describe("runApprovalFlow", () => {
     });
     expect(test.sendApplicationStatusEmail).toHaveBeenCalledTimes(2);
     expect(test.sendNewApplicationEmail).toHaveBeenCalledOnce();
+  });
+
+  it("stoppar ett godkännande när kursen är full utan uttrycklig utökning", async () => {
+    const tables: Tables = {
+      applications: [{ id: "app-1", status: "pending" }],
+      courses: [{ id: "course-1", title: "Nybörjarkurs", max_participants: 1 }],
+      profiles: [{ id: "student-1", email: "elev@example.com" }],
+      enrollments: [{ id: "enrollment-old", course_id: "course-1", payment_status: "paid" }],
+    };
+    const test = setup(tables);
+
+    const result = await runApprovalFlow({
+      application: application(),
+      status: "approved",
+      reviewerId: "teacher-1",
+    }, test.dependencies);
+
+    expect(result).toEqual({
+      error: "Kursen \"Nybörjarkurs\" är full (1/1). Bekräfta att kapaciteten ska utökas med en plats.",
+    });
+    expect(tables.courses[0].max_participants).toBe(1);
+    expect(tables.applications[0].status).toBe("pending");
+    expect(test.checkoutCreate).not.toHaveBeenCalled();
+    expect(test.sendApprovalEmail).not.toHaveBeenCalled();
+  });
+
+  it("låter läraren utöka en full kurs med exakt en plats vid godkännande", async () => {
+    const tables: Tables = {
+      applications: [{ id: "app-1", status: "pending" }],
+      courses: [{ id: "course-1", title: "Nybörjarkurs", max_participants: 1 }],
+      profiles: [{ id: "student-1", email: "elev@example.com" }],
+      enrollments: [{ id: "enrollment-old", course_id: "course-1", payment_status: "paid" }],
+    };
+    const test = setup(tables);
+
+    const result = await runApprovalFlow({
+      application: application(),
+      status: "approved",
+      reviewerId: "teacher-1",
+      expandCapacity: true,
+    }, test.dependencies);
+
+    expect(result).toEqual({
+      ok: true,
+      payment_status: "pending",
+      capacity_expanded: true,
+      new_capacity: 2,
+    });
+    expect(tables.courses[0].max_participants).toBe(2);
+    expect(tables.applications[0].status).toBe("approved");
+    expect(test.sendApprovalEmail).toHaveBeenCalledOnce();
+  });
+
+  it("utökar den fulla målkursen direkt när läraren hänvisar", async () => {
+    const tables: Tables = {
+      applications: [{ id: "app-1", status: "pending", course_id: "course-1", email: "elev@example.com" }],
+      courses: [{
+        id: "course-2",
+        title: "Grundkurs",
+        max_participants: 2,
+        is_active: true,
+        teacher_id: "teacher-2",
+        teacher: { full_name: "Lärare Två", email: "teacher@example.com" },
+      }],
+      enrollments: [
+        { id: "enrollment-1", course_id: "course-2", payment_status: "paid" },
+        { id: "enrollment-2", course_id: "course-2", payment_status: "paid" },
+      ],
+    };
+    const test = setup(tables);
+
+    const result = await runApprovalFlow({
+      application: application(),
+      status: "redirected",
+      reviewerId: "teacher-1",
+      redirectCourseId: "course-2",
+      expandCapacity: true,
+    }, test.dependencies);
+
+    expect(result).toMatchObject({
+      ok: true,
+      capacity_expanded: true,
+      new_capacity: 3,
+    });
+    expect(tables.courses[0].max_participants).toBe(3);
+    expect(tables.applications.find((row) => row.course_id === "course-2")?.status).toBe("pending");
   });
 });

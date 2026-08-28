@@ -53,7 +53,7 @@ export async function PATCH(req: NextRequest) {
   const { error, user } = await getTeacher();
   if (error) return error;
 
-  const { id, status, redirect_course_id, admin_notes } = await req.json();
+  const { id, status, redirect_course_id, admin_notes, expand_capacity } = await req.json();
   if (!id || !["approved", "rejected", "redirected"].includes(status)) {
     return NextResponse.json({ error: "Ogiltiga parametrar" }, { status: 400 });
   }
@@ -83,6 +83,7 @@ export async function PATCH(req: NextRequest) {
     reviewerId: user!.id,
     redirectCourseId: redirect_course_id,
     adminNotes: admin_notes,
+    expandCapacity: expand_capacity === true,
   });
 
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: 500 });

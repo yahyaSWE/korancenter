@@ -35,12 +35,15 @@ type RunApprovalArgs = {
   reviewerId: string;
   redirectCourseId?: string | null;
   adminNotes?: string | null;
+  expandCapacity?: boolean;
 };
 
 export type ApprovalSuccess = {
   ok: true;
   payment_status?: ApplicationPaymentStatus;
   transferred_application_id?: string;
+  capacity_expanded?: boolean;
+  new_capacity?: number;
 };
 
 export type ApprovalDependencies = {
@@ -72,6 +75,50 @@ class ApprovalFlowError extends Error {}
 
 function assertNoError(error: { message: string } | null, context: string) {
   if (error) throw new ApprovalFlowError(`${context}: ${error.message}`);
+}
+
+type CapacityResult = { expanded: boolean; newCapacity?: number };
+
+async function ensureCourseCapacity(
+  admin: ReturnType<typeof createAdminClient>,
+  courseId: string,
+  expandCapacity: boolean,
+): Promise<CapacityResult> {
+  const [{ data: course, error: courseError }, { count, error: countError }] = await Promise.all([
+    admin.from("courses").select("id, title, max_participants").eq("id", courseId).single(),
+    admin
+      .from("enrollments")
+      .select("*", { count: "exact", head: true })
+      .eq("course_id", courseId)
+      .eq("payment_status", "paid"),
+  ]);
+  assertNoError(courseError, "Kunde inte kontrollera kursens kapacitet");
+  assertNoError(countError, "Kunde inte räkna kursens elever");
+  if (!course) throw new ApprovalFlowError("Kursen finns inte");
+
+  const maxParticipants = course.max_participants as number | null;
+  const enrolledCount = count ?? 0;
+  if (maxParticipants === null || enrolledCount < maxParticipants) return { expanded: false };
+  if (!expandCapacity) {
+    throw new ApprovalFlowError(
+      `Kursen "${course.title}" är full (${enrolledCount}/${maxParticipants}). Bekräfta att kapaciteten ska utökas med en plats.`,
+    );
+  }
+
+  const newCapacity = Math.max(maxParticipants, enrolledCount) + 1;
+  const { data: updated, error: updateError } = await admin
+    .from("courses")
+    .update({ max_participants: newCapacity })
+    .eq("id", courseId)
+    .eq("max_participants", maxParticipants)
+    .select("max_participants")
+    .maybeSingle();
+  assertNoError(updateError, "Kunde inte utöka kursens kapacitet");
+  if (!updated) {
+    throw new ApprovalFlowError("Kursens kapacitet ändrades samtidigt. Försök igen.");
+  }
+
+  return { expanded: true, newCapacity };
 }
 
 async function updateApplicationStatus(
@@ -240,6 +287,8 @@ async function transferApplication(
   assertNoError(courseError, "Kunde inte läsa hänvisningskursen");
   if (!redirectCourse?.is_active) throw new ApprovalFlowError("Hänvisningskursen är inte aktiv");
 
+  const capacity = await ensureCourseCapacity(admin, redirectCourse.id, args.expandCapacity === true);
+
   const normalizedEmail = args.application.email.trim().toLowerCase();
   const { data: existingApplication, error: existingError } = await admin
     .from("applications")
@@ -320,7 +369,13 @@ async function transferApplication(
     }
   }
 
-  return { ok: true, transferred_application_id: transferredApplicationId };
+  return {
+    ok: true,
+    transferred_application_id: transferredApplicationId,
+    ...(capacity.expanded
+      ? { capacity_expanded: true, new_capacity: capacity.newCapacity }
+      : {}),
+  };
 }
 
 /** Kör hela beslutet och sparar slutstatus först när de nödvändiga stegen lyckats. */
@@ -330,6 +385,11 @@ export async function runApprovalFlow(
 ): Promise<ApprovalSuccess | { error: string }> {
   try {
     if (args.status === "approved") {
+      const capacity = await ensureCourseCapacity(
+        dependencies.createAdminClient(),
+        args.application.course_id,
+        args.expandCapacity === true,
+      );
       const approval = await sendApprovalInstructions(args.application, dependencies);
       await updateApplicationStatus(
         dependencies.createAdminClient(),
@@ -340,7 +400,13 @@ export async function runApprovalFlow(
         args.adminNotes ?? null,
         dependencies.now(),
       );
-      return { ok: true, payment_status: approval.payment_status };
+      return {
+        ok: true,
+        payment_status: approval.payment_status,
+        ...(capacity.expanded
+          ? { capacity_expanded: true, new_capacity: capacity.newCapacity }
+          : {}),
+      };
     }
 
     if (args.status === "redirected") return await transferApplication(args, dependencies);

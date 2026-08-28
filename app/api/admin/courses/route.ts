@@ -5,13 +5,25 @@ export async function GET() {
   const { supabase, error } = await requireAdmin();
   if (error) return error;
 
-  const { data, error: err } = await supabase!
-    .from("courses")
-    .select("*, teacher:profiles!teacher_id(id, full_name, email)")
-    .order("created_at", { ascending: false });
+  const [{ data, error: err }, { data: enrollments, error: enrollmentError }] = await Promise.all([
+    supabase!
+      .from("courses")
+      .select("*, teacher:profiles!teacher_id(id, full_name, email)")
+      .order("created_at", { ascending: false }),
+    supabase!.from("enrollments").select("course_id").eq("payment_status", "paid"),
+  ]);
 
   if (err) return NextResponse.json({ error: err.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  if (enrollmentError) return NextResponse.json({ error: enrollmentError.message }, { status: 500 });
+
+  const counts = new Map<string, number>();
+  for (const enrollment of enrollments ?? []) {
+    counts.set(enrollment.course_id, (counts.get(enrollment.course_id) ?? 0) + 1);
+  }
+  return NextResponse.json((data ?? []).map((course) => ({
+    ...course,
+    enrolled_count: counts.get(course.id) ?? 0,
+  })));
 }
 
 export async function POST(req: NextRequest) {
