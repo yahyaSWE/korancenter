@@ -10,6 +10,7 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = createAdminClient();
+  const normalizedEmail = email.trim().toLowerCase();
 
   // Fetch course + teacher info
   const { data: course } = await admin
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     .from("applications")
     .select("id")
     .eq("course_id", course_id)
-    .eq("email", email.toLowerCase())
+    .eq("email", normalizedEmail)
     .not("status", "eq", "rejected")
     .single();
 
@@ -40,12 +41,13 @@ export async function POST(req: NextRequest) {
     .insert({
       course_id,
       name: name.trim(),
-      email: email.trim().toLowerCase(),
+      email: normalizedEmail,
       phone: phone.trim(),
       address: address.trim(),
       postal_code: postal_code.trim(),
       city: city.trim(),
       experience: experience?.trim() ?? null,
+      status: "pending",
     })
     .select()
     .single();
@@ -60,7 +62,7 @@ export async function POST(req: NextRequest) {
       toEmail: teacher.email,
       toName: teacher.full_name ?? "Lärare",
       applicantName: name,
-      applicantEmail: email,
+      applicantEmail: normalizedEmail,
       courseName: course.title,
       applicationId: application.id,
     }).catch(() => {}); // Don't fail if email fails
@@ -78,7 +80,7 @@ export async function POST(req: NextRequest) {
         toEmail: a.email,
         toName: a.full_name ?? "Admin",
         applicantName: name,
-        applicantEmail: email,
+        applicantEmail: normalizedEmail,
         courseName: course.title,
         applicationId: application.id,
       }).catch(() => {});

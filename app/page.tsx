@@ -253,7 +253,7 @@ export default async function Home() {
                 { q: "Hur sker undervisningen?", a: "All undervisning sker online via videosamtal. Du behöver bara en dator, surfplatta eller telefon med kamera och mikrofon." },
                 { q: "Vad händer om jag missar en lektion?", a: "Om man missar en lektion kan man ta del av det man har missat via elevportalen." },
                 { q: "Vad händer om läraren måste ställa in en lektion?", a: "Läraren kommer försöka ersätta lektionen på annan tid." },
-                { q: "Kan man ansöka till en fullsatt kurs?", a: "Ja, då hamnar man på en väntelista." },
+                { q: "Kan man ansöka till en fullsatt kurs?", a: "Ja. Ansökan visas som väntande hos läraren, som kan utöka gruppen med en plats eller hänvisa dig till en annan passande grupp." },
                 { q: "Är kurserna för alla åldrar?", a: "Ja, vi tar emot elever från 11 år och uppåt. Barn och unga undervisas med anpassad pedagogik." },
                 { q: "Hur betalar jag?", a: "Betalning sker för 3 månader i taget i förväg. Vi fakturerar via Stripe och du kan betala med kort eller Klarna." },
               ].map((faq, i) => (
