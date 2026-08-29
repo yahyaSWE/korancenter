@@ -257,7 +257,11 @@ export default function AdminPanel() {
     setResendingAppId(null);
     if (res.ok) {
       setApplications((prev) => prev.map((item) => item.id === app.id
-        ? { ...item, payment_status: data.payment_status ?? item.payment_status }
+        ? {
+            ...item,
+            payment_status: data.payment_status ?? item.payment_status,
+            payment_link_sent_at: data.payment_link_sent_at ?? item.payment_link_sent_at,
+          }
         : item));
       toast(`Mejl skickat till ${app.email}.`);
     } else {
@@ -280,7 +284,12 @@ export default function AdminPanel() {
         ? appReviewForm.redirect_course_id
         : appReviewing.course_id;
       setApplications((prev) => prev.map((a) => a.id === appReviewing.id
-        ? { ...a, status: appReviewForm.status, payment_status: data.payment_status ?? a.payment_status }
+        ? {
+            ...a,
+            status: appReviewForm.status,
+            payment_status: data.payment_status ?? a.payment_status,
+            payment_link_sent_at: data.payment_link_sent_at ?? a.payment_link_sent_at,
+          }
         : a));
       if (data.capacity_expanded && typeof data.new_capacity === "number") {
         setCourses((prev) => prev.map((course) => course.id === affectedCourseId

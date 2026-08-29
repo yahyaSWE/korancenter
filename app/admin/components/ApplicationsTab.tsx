@@ -9,6 +9,16 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   redirected: { label: "Hänvisad", color: "bg-blue-50 text-blue-600" },
 };
 
+function formatSentAt(value: string) {
+  return new Date(value).toLocaleString("sv-SE", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 type ReviewForm = { status: string; redirect_course_id: string; admin_notes: string; expand_capacity: boolean };
 
 type Props = {
@@ -109,6 +119,11 @@ export function ApplicationsTab({
                           {app.payment_status === "cancelled" && "Avbruten"}
                           {app.payment_status === "refunded" && "Återbetald"}
                           {!app.payment_status && "⚠ Saknar kursplats"}
+                        </span>
+                      )}
+                      {app.payment_link_sent_at && (
+                        <span className="text-[11px] text-gray-400 whitespace-nowrap">
+                          Länk skickad {formatSentAt(app.payment_link_sent_at)}
                         </span>
                       )}
                     </div>

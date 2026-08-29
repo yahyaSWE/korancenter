@@ -24,7 +24,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
   try {
     const result = await sendApprovalInstructions(application as unknown as ApplicationWithCourse);
-    return NextResponse.json({ ok: true, sent: true, payment_status: result.payment_status });
+    return NextResponse.json({ ok: true, sent: true, ...result });
   } catch (sendError) {
     const message = sendError instanceof Error ? sendError.message : "Kunde inte skicka betalningslänken";
     console.error("[admin-resend-approval]", sendError);

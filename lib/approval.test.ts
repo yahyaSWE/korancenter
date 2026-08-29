@@ -157,7 +157,11 @@ describe("runApprovalFlow", () => {
       reviewerId: "teacher-1",
     }, test.dependencies);
 
-    expect(result).toEqual({ ok: true, payment_status: "pending" });
+    expect(result).toEqual({
+      ok: true,
+      payment_status: "pending",
+      payment_link_sent_at: "2026-08-28T12:00:00.000Z",
+    });
     expect(tables.enrollments).toMatchObject([{
       student_id: "student-1",
       course_id: "course-1",
@@ -166,6 +170,7 @@ describe("runApprovalFlow", () => {
     expect(test.checkoutCreate).toHaveBeenCalledOnce();
     expect(test.sendApprovalEmail).toHaveBeenCalledOnce();
     expect(tables.applications[0].status).toBe("approved");
+    expect(tables.applications[0].payment_link_sent_at).toBe("2026-08-28T12:00:00.000Z");
     expect(test.log.indexOf("email:approval")).toBeLessThan(test.log.indexOf("db:applications:update:approved"));
   });
 
@@ -206,6 +211,7 @@ describe("runApprovalFlow", () => {
 
     expect(result).toEqual({ error: "Resend nere" });
     expect(tables.applications[0].status).toBe("pending");
+    expect(tables.applications[0].payment_link_sent_at).toBeUndefined();
   });
 
   it("återanvänder en redan betald kursplats utan ny Stripe-session", async () => {
@@ -227,6 +233,7 @@ describe("runApprovalFlow", () => {
     expect(test.checkoutCreate).not.toHaveBeenCalled();
     expect(test.sendApprovalEmail).toHaveBeenCalledWith(expect.objectContaining({ checkoutUrl: null }));
     expect(tables.applications[0].status).toBe("approved");
+    expect(tables.applications[0].payment_link_sent_at).toBeUndefined();
   });
 
   it("flyttar en hänvisning till en ny väntande ansökan utan dubbletter", async () => {
@@ -306,6 +313,7 @@ describe("runApprovalFlow", () => {
     expect(result).toEqual({
       ok: true,
       payment_status: "pending",
+      payment_link_sent_at: "2026-08-28T12:00:00.000Z",
       capacity_expanded: true,
       new_capacity: 2,
     });

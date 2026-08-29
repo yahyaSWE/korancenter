@@ -16,6 +16,7 @@ export type ApplicationRow = {
   admin_notes: string | null;
   redirect_course_id: string | null;
   created_at: string;
+  payment_link_sent_at: string | null;
   course: { id: string; title: string } | null;
   redirect_course: { id: string; title: string } | null;
   payment_status?: "paid" | "pending" | "cancelled" | "refunded" | null;

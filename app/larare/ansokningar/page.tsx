@@ -16,6 +16,7 @@ type Application = {
   admin_notes: string | null;
   redirect_course_id: string | null;
   created_at: string;
+  payment_link_sent_at: string | null;
   course: { id: string; title: string } | null;
   redirect_course: { id: string; title: string } | null;
   payment_status?: "paid" | "pending" | "cancelled" | "refunded" | null;
@@ -34,6 +35,16 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   rejected:   { label: "Nekad",     color: "bg-red-50 text-red-500" },
   redirected: { label: "Hänvisad",  color: "bg-blue-50 text-blue-600" },
 };
+
+function formatSentAt(value: string) {
+  return new Date(value).toLocaleString("sv-SE", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function LarareAnsokningar() {
   const [applications, setApplications] = useState<Application[]>([]);
@@ -81,7 +92,12 @@ export default function LarareAnsokningar() {
         ? reviewForm.redirect_course_id
         : reviewing.course_id;
       setApplications((prev) => prev.map((a) => a.id === reviewing.id
-        ? { ...a, status: reviewForm.status, payment_status: data.payment_status ?? a.payment_status }
+        ? {
+            ...a,
+            status: reviewForm.status,
+            payment_status: data.payment_status ?? a.payment_status,
+            payment_link_sent_at: data.payment_link_sent_at ?? a.payment_link_sent_at,
+          }
         : a));
       if (data.capacity_expanded && typeof data.new_capacity === "number") {
         setCourses((prev) => prev.map((course) => course.id === affectedCourseId
@@ -107,7 +123,11 @@ export default function LarareAnsokningar() {
       return;
     }
     setApplications((prev) => prev.map((item) => item.id === application.id
-      ? { ...item, payment_status: data.payment_status ?? item.payment_status }
+      ? {
+          ...item,
+          payment_status: data.payment_status ?? item.payment_status,
+          payment_link_sent_at: data.payment_link_sent_at ?? item.payment_link_sent_at,
+        }
       : item));
     showToast(`Ny betalnings- och lösenordslänk skickad till ${application.email}.`);
   };
@@ -174,6 +194,11 @@ export default function LarareAnsokningar() {
                 <div>
                   <p className="font-semibold text-gray-900">{app.name}</p>
                   <p className="text-xs text-gray-400">{app.course?.title} · {new Date(app.created_at).toLocaleDateString("sv-SE")}</p>
+                  {app.payment_link_sent_at && (
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      Betalningslänk skickad {formatSentAt(app.payment_link_sent_at)}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-3">

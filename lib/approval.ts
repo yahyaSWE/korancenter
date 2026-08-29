@@ -41,6 +41,7 @@ type RunApprovalArgs = {
 export type ApprovalSuccess = {
   ok: true;
   payment_status?: ApplicationPaymentStatus;
+  payment_link_sent_at?: string;
   transferred_application_id?: string;
   capacity_expanded?: boolean;
   new_capacity?: number;
@@ -147,7 +148,7 @@ async function updateApplicationStatus(
 export async function sendApprovalInstructions(
   application: ApplicationWithCourse,
   dependencies: ApprovalDependencies = defaultDependencies,
-): Promise<{ payment_status: ApplicationPaymentStatus }> {
+): Promise<{ payment_status: ApplicationPaymentStatus; payment_link_sent_at?: string }> {
   const admin = dependencies.createAdminClient();
   const course = application.course;
   if (!course?.id) throw new ApprovalFlowError("Kursen saknas på ansökan");
@@ -266,7 +267,21 @@ export async function sendApprovalInstructions(
     checkoutUrl,
     passwordSetupLink,
   });
-  return { payment_status: paymentStatus };
+
+  let paymentLinkSentAt: string | undefined;
+  if (checkoutUrl) {
+    paymentLinkSentAt = dependencies.now();
+    const { error: timestampError } = await admin
+      .from("applications")
+      .update({ payment_link_sent_at: paymentLinkSentAt })
+      .eq("id", application.id);
+    assertNoError(timestampError, "Kunde inte spara när betalningslänken skickades");
+  }
+
+  return {
+    payment_status: paymentStatus,
+    ...(paymentLinkSentAt ? { payment_link_sent_at: paymentLinkSentAt } : {}),
+  };
 }
 
 async function transferApplication(
@@ -403,6 +418,9 @@ export async function runApprovalFlow(
       return {
         ok: true,
         payment_status: approval.payment_status,
+        ...(approval.payment_link_sent_at
+          ? { payment_link_sent_at: approval.payment_link_sent_at }
+          : {}),
         ...(capacity.expanded
           ? { capacity_expanded: true, new_capacity: capacity.newCapacity }
           : {}),
