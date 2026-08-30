@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS enrollments (
   payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'refunded', 'cancelled')),
   klarna_order_id TEXT,
   klarna_session_id TEXT,
+  student_confirmation_sent_at TIMESTAMPTZ,
   UNIQUE(student_id, course_id)
 );
 

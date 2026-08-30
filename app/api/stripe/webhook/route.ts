@@ -5,7 +5,9 @@ import {
   sendEnrollmentActivatedEmail,
   sendEnrollmentCancelledEmail,
   sendPaymentFailedEmail,
+  sendStudentEnrollmentConfirmationEmail,
 } from "@/lib/email";
+import { getNextScheduledLesson, type WeeklySchedule } from "@/lib/lessons";
 import type Stripe from "stripe";
 
 type NotifyArgs = {
@@ -13,6 +15,7 @@ type NotifyArgs = {
   studentEmail: string;
   courseName: string;
   toEmails: string[];
+  weeklySchedule: WeeklySchedule | null;
 };
 
 async function buildRecipients(enrollmentId: string): Promise<NotifyArgs | null> {
@@ -20,14 +23,18 @@ async function buildRecipients(enrollmentId: string): Promise<NotifyArgs | null>
     const admin = createAdminClient();
     const { data: enrollment } = await admin
       .from("enrollments")
-      .select("id, student:profiles!student_id(full_name, email), course:courses!course_id(title, teacher_id)")
+      .select("id, student:profiles!student_id(full_name, email), course:courses!course_id(title, teacher_id, weekly_schedule)")
       .eq("id", enrollmentId)
       .single();
     if (!enrollment) return null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const student = (enrollment as any).student as { full_name: string | null; email: string | null } | null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const course = (enrollment as any).course as { title: string; teacher_id: string | null } | null;
+    const course = (enrollment as any).course as {
+      title: string;
+      teacher_id: string | null;
+      weekly_schedule: WeeklySchedule | null;
+    } | null;
     if (!student || !course) return null;
 
     const recipients = new Set<string>();
@@ -40,13 +47,12 @@ async function buildRecipients(enrollmentId: string): Promise<NotifyArgs | null>
       if (a.email) recipients.add(a.email);
     }
 
-    if (recipients.size === 0) return null;
-
     return {
       toEmails: Array.from(recipients),
       studentName: student.full_name ?? student.email ?? "Okänd elev",
       studentEmail: student.email ?? "",
       courseName: course.title,
+      weeklySchedule: course.weekly_schedule,
     };
   } catch (e) {
     console.error("[stripe-webhook] buildRecipients error:", e);
@@ -54,12 +60,35 @@ async function buildRecipients(enrollmentId: string): Promise<NotifyArgs | null>
   }
 }
 
-async function notifyTeacherAndAdmin(enrollmentId: string) {
+async function notifyEnrollmentActivated(
+  enrollmentId: string,
+  { notifyStaff, notifyStudent }: { notifyStaff: boolean; notifyStudent: boolean },
+) {
   const args = await buildRecipients(enrollmentId);
-  if (!args) return;
-  await sendEnrollmentActivatedEmail(args).catch((e) =>
-    console.error("[stripe-webhook] activated email error:", e),
-  );
+  if (!args) throw new Error("Kunde inte läsa elev- och kursuppgifter för bekräftelsemejlet");
+
+  if (notifyStaff) {
+    await sendEnrollmentActivatedEmail(args).catch((e) =>
+      console.error("[stripe-webhook] activated staff email error:", e),
+    );
+  }
+
+  if (!notifyStudent) return;
+  if (!args.studentEmail) throw new Error("Eleven saknar e-postadress för inskrivningsbekräftelsen");
+
+  await sendStudentEnrollmentConfirmationEmail({
+    toEmail: args.studentEmail,
+    studentName: args.studentName,
+    courseName: args.courseName,
+    nextLesson: getNextScheduledLesson(args.weeklySchedule),
+  });
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("enrollments")
+    .update({ student_confirmation_sent_at: new Date().toISOString() })
+    .eq("id", enrollmentId);
+  if (error) throw new Error(`Kunde inte registrera inskrivningsbekräftelsen: ${error.message}`);
 }
 
 async function notifyCancellation(enrollmentId: string, endsAt: string | null) {
@@ -105,13 +134,14 @@ async function activateCheckoutSession(session: Stripe.Checkout.Session) {
   const admin = createAdminClient();
   const { data: prior, error: priorError } = await admin
     .from("enrollments")
-    .select("payment_status")
+    .select("payment_status, student_confirmation_sent_at")
     .eq("id", enrollmentId)
     .single();
   if (priorError || !prior) {
     throw new Error(`Kunde inte hitta kursplatsen: ${priorError?.message ?? enrollmentId}`);
   }
   const wasAlreadyPaid = prior.payment_status === "paid";
+  const needsStudentConfirmation = !prior.student_confirmation_sent_at;
 
   if (session.mode === "subscription") {
     if (!session.subscription) throw new Error("Stripe-sessionen saknar subscription-id");
@@ -134,7 +164,12 @@ async function activateCheckoutSession(session: Stripe.Checkout.Session) {
     throw new Error(`Okänt checkout-läge: ${session.mode}`);
   }
 
-  if (!wasAlreadyPaid) await notifyTeacherAndAdmin(enrollmentId);
+  if (!wasAlreadyPaid || needsStudentConfirmation) {
+    await notifyEnrollmentActivated(enrollmentId, {
+      notifyStaff: !wasAlreadyPaid,
+      notifyStudent: needsStudentConfirmation,
+    });
+  }
 }
 
 export async function POST(req: NextRequest) {

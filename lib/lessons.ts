@@ -1,6 +1,68 @@
 export type WeeklySlot = { enabled: boolean; time: string } | null | undefined;
 export type WeeklySchedule = WeeklySlot[];
 
+export type NextScheduledLesson = {
+  dateLabel: string;
+  time: string;
+};
+
+const STOCKHOLM_TIME_ZONE = "Europe/Stockholm";
+
+/**
+ * Hitta nästa schemalagda kurstillfälle i svensk lokal tid.
+ * Funktionen använder UTC endast som en stabil kalender för datumräkning;
+ * själva jämförelsen görs mot klockslaget i Europe/Stockholm.
+ */
+export function getNextScheduledLesson(
+  schedule: WeeklySchedule | null | undefined,
+  now = new Date(),
+): NextScheduledLesson | null {
+  if (!Array.isArray(schedule) || !schedule.some((slot) => slot?.enabled && slot.time)) {
+    return null;
+  }
+
+  const parts = new Intl.DateTimeFormat("sv-SE-u-ca-gregory", {
+    timeZone: STOCKHOLM_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+  const year = value("year");
+  const month = value("month");
+  const day = value("day");
+  const currentMinutes = value("hour") * 60 + value("minute");
+
+  if (![year, month, day, currentMinutes].every(Number.isFinite)) return null;
+
+  for (let offset = 0; offset <= 7; offset += 1) {
+    const calendarDate = new Date(Date.UTC(year, month - 1, day + offset, 12));
+    const jsDay = calendarDate.getUTCDay(); // 0=Sön, 1=Mån
+    const scheduleIndex = jsDay === 0 ? 6 : jsDay - 1; // 0=Mån, 6=Sön
+    const slot = schedule[scheduleIndex];
+    if (!slot?.enabled || !/^([01]\d|2[0-3]):[0-5]\d$/.test(slot.time)) continue;
+
+    const [hours, minutes] = slot.time.split(":").map(Number);
+    if (offset === 0 && hours * 60 + minutes <= currentMinutes) continue;
+
+    return {
+      dateLabel: new Intl.DateTimeFormat("sv-SE", {
+        timeZone: STOCKHOLM_TIME_ZONE,
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }).format(calendarDate),
+      time: slot.time,
+    };
+  }
+
+  return null;
+}
+
 export type VirtualLesson = {
   id: string;
   course_id: string;

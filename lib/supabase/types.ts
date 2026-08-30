@@ -49,6 +49,7 @@ export interface Enrollment {
   stripe_customer_id: string | null
   current_period_end: string | null
   subscription_status: SubscriptionStatus
+  student_confirmation_sent_at: string | null
   course?: Course
   student?: Profile
 }

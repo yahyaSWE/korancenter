@@ -143,6 +143,75 @@ export async function sendEnrollmentActivatedEmail({
   });
 }
 
+export async function sendStudentEnrollmentConfirmationEmail({
+  toEmail,
+  studentName,
+  courseName,
+  nextLesson,
+}: {
+  toEmail: string;
+  studentName: string;
+  courseName: string;
+  nextLesson: { dateLabel: string; time: string } | null;
+}) {
+  const resend = getResend();
+  if (!resend) throw new Error("RESEND_API_KEY saknas");
+
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://korancenter.se").replace(/\/$/, "");
+  const nextLessonRow = nextLesson
+    ? `<tr>
+        <td style="color:#666;padding:5px 0;width:110px">Nästa lektion</td>
+        <td style="color:#1A1520;font-weight:600;text-transform:capitalize">${nextLesson.dateLabel} kl. ${nextLesson.time}</td>
+      </tr>`
+    : `<tr>
+        <td style="color:#666;padding:5px 0;width:110px">Nästa lektion</td>
+        <td style="color:#1A1520;font-weight:600">Se aktuellt schema i elevportalen</td>
+      </tr>`;
+
+  const { error } = await resend.emails.send({
+    from: FROM,
+    to: toEmail,
+    subject: `Välkommen till ${courseName} – din kursplats är aktiverad`,
+    html: `
+      <div style="font-family:sans-serif;max-width:540px;margin:0 auto">
+        <div style="background:linear-gradient(135deg,#5C2D8A,#7B3FB0);padding:32px;border-radius:12px 12px 0 0;text-align:center">
+          <h1 style="color:white;margin:0;font-size:22px">Korancenter</h1>
+          <p style="color:rgba(255,255,255,0.88);margin:6px 0 0">Din kursplats är aktiverad</p>
+        </div>
+        <div style="padding:28px;background:#fff;border:1px solid #eee;border-radius:0 0 12px 12px">
+          <h2 style="color:#1A1520;margin-top:0">Assalamu alaikum, ${studentName}!</h2>
+          <p style="color:#555;line-height:1.6">
+            Vi har tagit emot din betalning och du är nu inskriven i kursen.
+          </p>
+          <div style="background:#F9F5FF;border:1px solid #E9D5FF;border-radius:10px;padding:18px;margin:20px 0">
+            <table style="width:100%;font-size:14px">
+              <tr>
+                <td style="color:#666;padding:5px 0;width:110px">Kurs</td>
+                <td style="color:#1A1520;font-weight:600">${courseName}</td>
+              </tr>
+              ${nextLessonRow}
+            </table>
+          </div>
+          <p style="color:#555;line-height:1.6">
+            Logga in i elevportalen för att se ditt schema. Där hittar du också länken till lektionen under <strong>Översikt</strong> och <strong>Schema</strong>.
+          </p>
+          <div style="text-align:center;margin:28px 0">
+            <a href="${siteUrl}/logga-in"
+               style="display:inline-block;background:#7B3FB0;color:white;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
+              Logga in i elevportalen
+            </a>
+          </div>
+          <p style="color:#999;font-size:12px;text-align:center;margin-top:24px">
+            Frågor? Kontakta oss på <a href="mailto:info@korancenter.se" style="color:#7B3FB0">info@korancenter.se</a><br/>
+            <strong>Korancenter</strong>
+          </p>
+        </div>
+      </div>
+    `,
+  });
+  if (error) throw new Error(`Kunde inte skicka inskrivningsbekräftelse: ${error.message}`);
+}
+
 export async function sendEnrollmentCancelledEmail({
   toEmails,
   studentName,
